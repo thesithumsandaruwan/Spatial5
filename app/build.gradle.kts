@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "dev.headtracker"
-        minSdk = 28          // DynamicsProcessing audio effect needs API 28
+        minSdk = 29          // playback capture (immersive mode) needs Android 10
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"

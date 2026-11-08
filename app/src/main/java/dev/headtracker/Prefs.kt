@@ -28,7 +28,27 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(K_SCREEN, true)
         set(v) = sp.edit().putBoolean(K_SCREEN, v).apply()
 
+    var immersive: Boolean
+        get() = sp.getBoolean(K_IMMERSIVE, true)
+        set(v) = sp.edit().putBoolean(K_IMMERSIVE, v).apply()
+    var worldAnchor: Boolean
+        get() = sp.getBoolean(K_WORLD, true)
+        set(v) = sp.edit().putBoolean(K_WORLD, v).apply()
+    /** 0..100 -> stage half-width 20..70 degrees. */
+    var width: Int
+        get() = sp.getInt(K_WIDTH, 40)
+        set(v) = sp.edit().putInt(K_WIDTH, v).apply()
+    var room: Int
+        get() = sp.getInt(K_ROOM, 35)
+        set(v) = sp.edit().putInt(K_ROOM, v).apply()
+
+    val stageHalfWidthDeg get() = 20f + width * 0.5f
+
     companion object {
+        const val K_IMMERSIVE = "immersive"
+        const val K_WORLD = "world_anchor"
+        const val K_WIDTH = "width"
+        const val K_ROOM = "room"
         const val K_FACE_MODE = "face_mode"
         const val K_STRENGTH = "strength"
         const val K_SMOOTH = "smoothness"

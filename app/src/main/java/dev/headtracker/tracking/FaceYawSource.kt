@@ -29,7 +29,7 @@ import java.util.concurrent.Executors
 
 /**
  * Estimates head yaw relative to the phone from the front camera using ML Kit's fast face detector
- * on tiny (320x240) frames. Frame processing is throttled: ~15 fps while a face is visible and
+ * on tiny (320x240) frames. Frame processing is throttled: ~24 fps while a face is visible and
  * ~3 fps while searching, so the CPU mostly sleeps.
  *
  * Callback: yaw in degrees (+ = head turned to the user's left) or null when no face is found.
@@ -149,7 +149,7 @@ class FaceYawSource(
 
     private companion object {
         const val TAG = "FaceYaw"
-        const val TARGET_FPS = 15
+        const val TARGET_FPS = 24
         const val SEARCH_INTERVAL_MS = 330L
     }
 }
