@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">Head Tracker</string>
+    <string name="start">Start head tracking</string>
+    <string name="stop">Stop head tracking</string>
+    <string name="recenter">Recenter</string>
+    <string name="mode_title">Tracking source</string>
+    <string name="mode_face">Face (front camera + gyro)</string>
+    <string name="mode_motion">Phone motion only (no camera)</string>
+    <string name="strength">Spatial strength</string>
+    <string name="smoothness">Smoothness</string>
+    <string name="invert">Invert direction</string>
+    <string name="auto_recenter">Auto-recenter</string>
+    <string name="global">Global mode (players that don\'t announce audio sessions)</string>
+    <string name="pause_screen_off">Pause camera when screen is off</string>
+    <string name="notif_channel">Head tracking</string>
+    <string name="help">Tip: start tracking before you press play, or pause/resume the player once, so it can hook the player\'s audio session. If nothing changes in your player, turn on Global mode.</string>
+</resources>

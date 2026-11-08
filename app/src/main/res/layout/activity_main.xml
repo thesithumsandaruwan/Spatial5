@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <dev.headtracker.HeadIndicatorView
+            android:id="@+id/indicator"
+            android:layout_width="match_parent"
+            android:layout_height="200dp" />
+
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+
+        <TextView
+            android:id="@+id/detail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:gravity="center"
+            android:textAppearance="?android:attr/textAppearanceSmall" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp">
+            <Button
+                android:id="@+id/toggle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="2"
+                android:text="@string/start" />
+            <Button
+                android:id="@+id/recenter"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/recenter" />
+        </LinearLayout>
+
+        <TextView style="@style/Header" android:text="@string/mode_title" />
+        <RadioGroup
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <RadioButton android:id="@+id/mode_face" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/mode_face" />
+            <RadioButton android:id="@+id/mode_motion" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/mode_motion" />
+        </RadioGroup>
+
+        <TextView style="@style/Header" android:text="@string/strength" />
+        <SeekBar android:id="@+id/strength" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100" />
+
+        <TextView style="@style/Header" android:text="@string/smoothness" />
+        <SeekBar android:id="@+id/smoothness" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100" />
+
+        <Switch android:id="@+id/auto_recenter" style="@style/Toggle" android:text="@string/auto_recenter" />
+        <Switch android:id="@+id/invert" style="@style/Toggle" android:text="@string/invert" />
+        <Switch android:id="@+id/pause_screen" style="@style/Toggle" android:text="@string/pause_screen_off" />
+        <Switch android:id="@+id/global" style="@style/Toggle" android:text="@string/global" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/help"
+            android:textAppearance="?android:attr/textAppearanceSmall" />
+    </LinearLayout>
+</ScrollView>
