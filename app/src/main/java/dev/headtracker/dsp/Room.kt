@@ -14,7 +14,7 @@ import kotlin.math.sin
  * Output is ADDED to the dry buffers; [alignDelay] lines it up behind the STFT path.
  */
 class Room(private val sr: Int, private val alignDelay: Int) {
-    @Volatile var amount = 0.35f
+    @Volatile var amount = 0.2f
 
     private val size = Integer.highestOneBit(alignDelay + (0.08 * sr).toInt()) * 2
     private val mask = size - 1
@@ -26,7 +26,10 @@ class Room(private val sr: Int, private val alignDelay: Int) {
     private val src = intArrayOf(0, 0, 0, 0, 1, 1, 1, 1)
     private val az = floatArrayOf(75f, 145f, -55f, 15f, -75f, -145f, 55f, -15f)
     private val delayMs = floatArrayOf(6.5f, 11.2f, 14.6f, 4.1f, 7.2f, 12.4f, 15.9f, 4.7f)
-    private val gain = floatArrayOf(0.50f, 0.36f, 0.30f, 0.32f, 0.50f, 0.36f, 0.30f, 0.32f)
+    private val gain = floatArrayOf(0.45f, 0.30f, 0.25f, 0.28f, 0.45f, 0.30f, 0.25f, 0.28f)
+    // Room only gets mids/highs: low-frequency reflections are what make a mix muddy.
+    private val hpCoef = exp(-2 * PI * 280.0 / sr).toFloat()
+    private var hpL = 0f; private var hpR = 0f; private var hpXl = 0f; private var hpXr = 0f
     private val n = src.size
     private val curDelay = Array(2) { FloatArray(n) }      // per ear, samples (smoothed)
     private val tgtDelay = Array(2) { FloatArray(n) }
@@ -38,7 +41,7 @@ class Room(private val sr: Int, private val alignDelay: Int) {
     private val fdnLen = floatArrayOf(17.3f, 21.1f, 24.7f, 29.3f).map { (it * sr / 1000).toInt() }.toIntArray()
     private val fdn = Array(4) { FloatArray(Integer.highestOneBit(fdnLen[it]) * 2) }
     private val fdnPos = IntArray(4)
-    private val fdnGain = FloatArray(4) { 10f.pow(-3f * fdnLen[it] / (0.42f * sr)) }
+    private val fdnGain = FloatArray(4) { 10f.pow(-3f * fdnLen[it] / (0.32f * sr)) }
     private val fdnLp = FloatArray(4)
     private val preDelay = alignDelay + (0.018 * sr).toInt()
 
@@ -79,14 +82,16 @@ class Room(private val sr: Int, private val alignDelay: Int) {
     fun process(inL: FloatArray, inR: FloatArray, frames: Int, yaw: Float, outL: FloatArray, outR: FloatArray) {
         val amt = amount
         if (amt <= 0.001f) {
-            for (i in 0 until frames) { bufL[w and mask] = inL[i]; bufR[w and mask] = inR[i]; w++ }
+            for (i in 0 until frames) { bufL[w and mask] = 0f; bufR[w and mask] = 0f; w++ }
             return
         }
         computeTargets(yaw)
         val step = 1f / frames
-        val tail = 0.22f * amt
+        val tail = 0.15f * amt
         for (i in 0 until frames) {
-            bufL[w and mask] = inL[i]; bufR[w and mask] = inR[i]
+            hpL = hpCoef * (hpL + inL[i] - hpXl); hpXl = inL[i]
+            hpR = hpCoef * (hpR + inR[i] - hpXr); hpXr = inR[i]
+            bufL[w and mask] = hpL; bufR[w and mask] = hpR
             var l = 0f; var r = 0f
             for (j in 0 until n) {
                 val buf = if (src[j] == 0) bufL else bufR

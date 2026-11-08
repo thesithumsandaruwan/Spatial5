@@ -19,7 +19,7 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(K_INVERT, false)
         set(v) = sp.edit().putBoolean(K_INVERT, v).apply()
     var autoRecenter: Boolean
-        get() = sp.getBoolean(K_RECENTER, true)
+        get() = sp.getBoolean(K_RECENTER, false)
         set(v) = sp.edit().putBoolean(K_RECENTER, v).apply()
     var global: Boolean
         get() = sp.getBoolean(K_GLOBAL, false)
@@ -39,13 +39,25 @@ class Prefs(context: Context) {
         get() = sp.getInt(K_WIDTH, 40)
         set(v) = sp.edit().putInt(K_WIDTH, v).apply()
     var room: Int
-        get() = sp.getInt(K_ROOM, 35)
+        get() = sp.getInt(K_ROOM, 20)
         set(v) = sp.edit().putInt(K_ROOM, v).apply()
 
     val stageHalfWidthDeg get() = 20f + width * 0.5f
 
+    /** Finds the best stage width and room for each song automatically. */
+    var autoTune: Boolean
+        get() = sp.getBoolean(K_AUTO, true)
+        set(v) = sp.edit().putBoolean(K_AUTO, v).apply()
+
+    /** Apps learned to block audio capture: they start in standard mode (no muting blip). */
+    val blocked: Set<String> get() = sp.getStringSet(K_BLOCKED, emptySet()) ?: emptySet()
+    fun addBlocked(pkgs: Set<String>) { if (pkgs.isNotEmpty()) sp.edit().putStringSet(K_BLOCKED, blocked + pkgs).apply() }
+    fun removeBlocked(pkgs: Set<String>) { if (pkgs.any { it in blocked }) sp.edit().putStringSet(K_BLOCKED, blocked - pkgs).apply() }
+
     companion object {
         const val K_IMMERSIVE = "immersive"
+        const val K_AUTO = "auto_tune"
+        const val K_BLOCKED = "blocked_pkgs"
         const val K_WORLD = "world_anchor"
         const val K_WIDTH = "width"
         const val K_ROOM = "room"

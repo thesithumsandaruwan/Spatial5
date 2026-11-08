@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/controls"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="16dp"
+    android:paddingBottom="40dp">
+
+    <TextView
+        android:id="@+id/toggle"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/pill_primary"
+        android:gravity="center"
+        android:fontFamily="sans-serif-medium"
+        android:textColor="#FFFFFF"
+        android:textSize="17sp"
+        android:focusable="true"
+        android:clickable="true"
+        android:text="@string/start" />
+
+    <TextView
+        android:id="@+id/enable_immersive"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/pill_secondary"
+        android:gravity="center"
+        android:fontFamily="sans-serif-medium"
+        android:textColor="@color/accent"
+        android:textSize="15sp"
+        android:focusable="true"
+        android:clickable="true"
+        android:visibility="gone"
+        android:text="@string/enable_immersive" />
+
+    <!-- AUDIO -->
+    <TextView style="@style/SectionHeader" android:text="@string/sec_audio" android:accessibilityHeading="true" />
+    <LinearLayout style="@style/Card">
+        <dev.headtracker.ui.SegmentedControl
+            android:id="@+id/audio_mode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginTop="12dp" />
+        <TextView
+            android:id="@+id/audio_caption"
+            style="@style/T.Footnote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="12dp" />
+        <View style="@style/Divider" />
+        <LinearLayout android:id="@+id/auto_row" style="@style/Row">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                <TextView style="@style/T.Body" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/auto_tune" />
+                <TextView style="@style/T.Subhead" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/auto_tune_sub" />
+            </LinearLayout>
+            <Switch android:id="@+id/auto_tune" style="@style/Toggle" />
+        </LinearLayout>
+        <View style="@style/Divider" />
+        <LinearLayout android:id="@+id/width_row" style="@style/Row" android:orientation="vertical" android:paddingBottom="4dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                <TextView style="@style/T.Body" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/width" />
+                <TextView android:id="@+id/width_value" style="@style/T.Value" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+            </LinearLayout>
+            <SeekBar android:id="@+id/width" style="@style/Slider" android:layout_marginStart="-14dp" android:layout_marginEnd="-14dp" />
+        </LinearLayout>
+        <View style="@style/Divider" />
+        <LinearLayout android:id="@+id/room_row" style="@style/Row" android:orientation="vertical" android:paddingBottom="4dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                <TextView style="@style/T.Body" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/room" />
+                <TextView android:id="@+id/room_value" style="@style/T.Value" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+            </LinearLayout>
+            <SeekBar android:id="@+id/room" style="@style/Slider" android:layout_marginStart="-14dp" android:layout_marginEnd="-14dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- HEAD TRACKING -->
+    <TextView style="@style/SectionHeader" android:text="@string/sec_tracking" android:accessibilityHeading="true" />
+    <LinearLayout style="@style/Card">
+        <dev.headtracker.ui.SegmentedControl
+            android:id="@+id/track_mode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginTop="12dp" />
+        <TextView
+            android:id="@+id/track_caption"
+            style="@style/T.Footnote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="12dp" />
+        <View style="@style/Divider" />
+        <LinearLayout style="@style/Row">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                <TextView style="@style/T.Body" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/world" />
+                <TextView style="@style/T.Subhead" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/world_sub" />
+            </LinearLayout>
+            <Switch android:id="@+id/world" style="@style/Toggle" />
+        </LinearLayout>
+        <View style="@style/Divider" />
+        <LinearLayout style="@style/Row">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                <TextView style="@style/T.Body" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/auto_recenter" />
+                <TextView style="@style/T.Subhead" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/auto_recenter_sub" />
+            </LinearLayout>
+            <Switch android:id="@+id/auto_recenter" style="@style/Toggle" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- NOW PLAYING -->
+    <TextView style="@style/SectionHeader" android:text="@string/sec_playing" android:accessibilityHeading="true" />
+    <LinearLayout style="@style/Card">
+        <TextView
+            android:id="@+id/render"
+            style="@style/T.Body"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="52dp"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp" />
+        <LinearLayout
+            android:id="@+id/apps"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </LinearLayout>
+
+    <!-- ADVANCED -->
+    <LinearLayout
+        android:id="@+id/advanced_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="28dp"
+        android:layout_marginBottom="7dp"
+        android:paddingStart="36dp"
+        android:paddingEnd="36dp"
+        android:minHeight="32dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:focusable="true"
+        android:clickable="true">
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="13sp"
+            android:letterSpacing="0.02"
+            android:textAllCaps="true"
+            android:textColor="@color/label2"
+            android:text="@string/sec_advanced" />
+        <ImageView
+            android:id="@+id/advanced_chevron"
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:src="@drawable/ic_chevron"
+            android:importantForAccessibility="no" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/advanced_card" style="@style/Card" android:visibility="gone">
+        <LinearLayout style="@style/Row" android:orientation="vertical" android:paddingBottom="4dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                <TextView style="@style/T.Body" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/smoothness" />
+                <TextView android:id="@+id/smoothness_value" style="@style/T.Value" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+            </LinearLayout>
+            <SeekBar android:id="@+id/smoothness" style="@style/Slider" android:layout_marginStart="-14dp" android:layout_marginEnd="-14dp" />
+        </LinearLayout>
+        <View style="@style/Divider" />
+        <LinearLayout style="@style/Row" android:orientation="vertical" android:paddingBottom="4dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                <TextView style="@style/T.Body" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/strength" />
+                <TextView android:id="@+id/strength_value" style="@style/T.Value" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+            </LinearLayout>
+            <SeekBar android:id="@+id/strength" style="@style/Slider" android:layout_marginStart="-14dp" android:layout_marginEnd="-14dp" />
+        </LinearLayout>
+        <View style="@style/Divider" />
+        <LinearLayout style="@style/Row">
+            <TextView style="@style/T.Body" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/invert" />
+            <Switch android:id="@+id/invert" style="@style/Toggle" />
+        </LinearLayout>
+        <View style="@style/Divider" />
+        <LinearLayout style="@style/Row">
+            <TextView style="@style/T.Body" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/pause_screen_off" />
+            <Switch android:id="@+id/pause_screen" style="@style/Toggle" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView style="@style/SectionFooter" android:layout_marginTop="24dp" android:text="@string/help" />
+</LinearLayout>

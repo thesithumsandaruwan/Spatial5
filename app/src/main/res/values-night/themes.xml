@@ -1,7 +1,14 @@
 <resources>
-    <style name="AppTheme" parent="android:Theme.Material">
-        <item name="android:colorPrimary">#1B2A3D</item>
-        <item name="android:colorPrimaryDark">#101A27</item>
-        <item name="android:colorAccent">#7FB2F0</item>
+    <style name="AppTheme" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:colorPrimary">@color/bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:textColorPrimary">@color/label</item>
+        <item name="android:textColorSecondary">@color/label2</item>
+        <item name="android:fontFamily">sans-serif</item>
     </style>
 </resources>

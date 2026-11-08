@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/hero"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/hero_bg">
+
+    <dev.headtracker.ui.HeadSceneView
+        android:id="@+id/scene"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no" />
+
+    <LinearLayout
+        android:id="@+id/hero_top"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="12dp">
+
+        <TextView
+            style="@style/T.LargeTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/title"
+            android:accessibilityHeading="true" />
+
+        <LinearLayout
+            android:id="@+id/status_pill"
+            android:layout_width="wrap_content"
+            android:layout_height="28dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/glass_pill"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="10dp"
+            android:paddingEnd="12dp">
+            <ImageView
+                android:id="@+id/status_dot"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:src="@drawable/dot"
+                android:importantForAccessibility="no" />
+            <TextView
+                android:id="@+id/status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="7dp"
+                android:textSize="13sp"
+                android:fontFamily="sans-serif-medium"
+                android:textColor="@color/label"
+                android:accessibilityLiveRegion="polite" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:gravity="bottom"
+        android:orientation="horizontal"
+        android:padding="20dp">
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/yaw_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-light"
+                android:fontFeatureSettings="tnum"
+                android:letterSpacing="-0.02"
+                android:textColor="@color/label"
+                android:textSize="34sp"
+                android:text="0°" />
+            <TextView
+                android:id="@+id/yaw_caption"
+                style="@style/T.Subhead"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+        <ImageButton
+            android:id="@+id/recenter"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/glass_circle"
+            android:contentDescription="@string/recenter"
+            android:src="@drawable/ic_recenter" />
+    </LinearLayout>
+</FrameLayout>

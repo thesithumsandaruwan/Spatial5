@@ -35,6 +35,7 @@ android {
 dependencies {
     val camerax = "1.4.2"
     implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.dynamicanimation:dynamicanimation:1.0.0")   // springs (~30 KB)
     implementation("androidx.lifecycle:lifecycle-service:2.8.7")
     implementation("androidx.camera:camera-camera2:$camerax")
     implementation("androidx.camera:camera-lifecycle:$camerax")

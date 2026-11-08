@@ -1,0 +1,18 @@
+<resources>
+    <color name="bg">#000000</color>
+    <color name="hero_bg">#000000</color>
+    <color name="card">#1C1C1E</color>
+    <color name="label">#FFFFFF</color>
+    <color name="label2">#99EBEBF5</color>
+    <color name="label3">#4DEBEBF5</color>
+    <color name="separator">#A6545458</color>
+    <color name="fill">#3D767680</color>
+    <color name="segment_thumb">#636366</color>
+    <color name="accent">#0A84FF</color>
+    <color name="green">#30D158</color>
+    <color name="orange">#FF9F0A</color>
+    <color name="glass">#592C2C2E</color>
+    <color name="glass_stroke">#26FFFFFF</color>
+    <color name="switch_off">#39393D</color>
+    <color name="thumb_stroke">#00000000</color>
+</resources>

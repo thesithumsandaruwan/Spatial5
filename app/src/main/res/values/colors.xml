@@ -1,3 +1,20 @@
 <resources>
-    <color name="ic_bg">#1F5FAD</color>
+    <color name="ic_bg">#0A84FF</color>
+    <!-- iOS system palette, light -->
+    <color name="bg">#F2F2F7</color>
+    <color name="hero_bg">#F2F2F7</color>
+    <color name="card">#FFFFFF</color>
+    <color name="label">#000000</color>
+    <color name="label2">#993C3C43</color>
+    <color name="label3">#4D3C3C43</color>
+    <color name="separator">#5C3C3C43</color>
+    <color name="fill">#1F767680</color>
+    <color name="segment_thumb">#FFFFFF</color>
+    <color name="accent">#007AFF</color>
+    <color name="green">#34C759</color>
+    <color name="orange">#FF9500</color>
+    <color name="glass">#B8FFFFFF</color>
+    <color name="glass_stroke">#1A000000</color>
+    <color name="switch_off">#E9E9EB</color>
+    <color name="thumb_stroke">#14000000</color>
 </resources>

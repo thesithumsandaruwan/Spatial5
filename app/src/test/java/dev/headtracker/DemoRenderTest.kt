@@ -73,7 +73,7 @@ class DemoRenderTest {
     }
 
     @Test fun renderDemoAndCheckForClicks() {
-        val hrtf = Hrtf.build(File("src/main/assets/hrtf_kemar.bin").inputStream(), 1024, sr)
+        val hrtf = Hrtf.build(File("src/main/assets/hrtf_kemar.bin").inputStream(), BinauralRenderer.FFT_SIZE, sr)
         val seconds = 26
         val (inL, inR) = mix(seconds)
         val rend = BinauralRenderer(sr, hrtf).apply { roomAmount = 0.35f; stageHalfWidth = 40f }

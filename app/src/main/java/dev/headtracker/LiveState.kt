@@ -13,6 +13,16 @@ object LiveState {
     @Volatile var render = ""
     @Volatile var immersiveRunning = false
     @Volatile var dumpAvailable = false
+    /** Stage half-width (deg) and room amount actually in use. */
+    @Volatile var width = 40f
+    @Volatile var room = 0.2f
+    /** Per virtual-speaker activity 0..1 (FL FR C LFE BL BR SL SR), or null. */
+    @Volatile var levels: FloatArray? = null
+    @Volatile var layout = LAYOUT_STANDARD
+
+    const val LAYOUT_STANDARD = 0
+    const val LAYOUT_UPMIX = 1
+    const val LAYOUT_SURROUND = 2
 
     /** Head yaw predicted [leadSec] ahead (to cancel Bluetooth / buffer latency). */
     fun predictedYaw(leadSec: Double): Float {

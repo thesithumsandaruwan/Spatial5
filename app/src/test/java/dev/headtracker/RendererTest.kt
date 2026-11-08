@@ -19,7 +19,7 @@ import kotlin.math.sqrt
 
 class RendererTest {
     private val sr = 48000
-    private val hrtf by lazy { Hrtf.build(File("src/main/assets/hrtf_kemar.bin").inputStream(), 1024, sr) }
+    private val hrtf by lazy { Hrtf.build(File("src/main/assets/hrtf_kemar.bin").inputStream(), BinauralRenderer.FFT_SIZE, sr) }
 
     /** Renders [seconds] of input produced by [gen] (frame index, channel) with a fixed yaw. */
     private fun render(channels: Int, seconds: Double, yaw: Float, room: Float = 0f, gen: (Int, Int) -> Float): Pair<FloatArray, FloatArray> {

@@ -72,10 +72,13 @@ class TrackerService : LifecycleService() {
     // Tracker-thread state.
     private class Session(val pkg: String, val uid: Int, val fromDump: Boolean, var seen: Long)
     private val sessions = HashMap<Int, Session>()
-    private val blockedUids = HashSet<Int>()
-    private val verifiedUids = HashSet<Int>()
+    /** Apps (by uid) whose audio is currently muted + re-rendered in 3D. Everything else is "open". */
+    private val mutedUids = HashSet<Int>()
     private val failedSessions = HashSet<Int>()
     private var captureUids: Set<Int> = emptySet()
+    /** Global in-place head tracking (session 0) for audio we can't re-render: unknown apps, apps that block capture. */
+    private var globalEngaged = false
+    private var globalSupported = true
     private var strength = 0.6
     private var prevYaw = 0.0
     private var yawVel = 0.0
@@ -122,6 +125,7 @@ class TrackerService : LifecycleService() {
         LiveState.running = true
         main.post(heartbeat)
         tracker.post(watchdog)
+        LiveState.dumpAvailable = scanner.available
         requestScan()
     }
 
@@ -176,6 +180,7 @@ class TrackerService : LifecycleService() {
         val e = ImmersiveEngine(this, p) { lead -> LiveState.predictedYaw(lead) }
         e.stageHalfWidth = prefs.stageHalfWidthDeg
         e.roomAmount = prefs.room / 100f
+        e.autoTune = prefs.autoTune
         immersive = e
         e.start()
         LiveState.immersiveRunning = true
@@ -192,86 +197,128 @@ class TrackerService : LifecycleService() {
         tracker.post { reconcile() }
     }
 
-    /** Decides per session: mute + re-render (immersive) or shape in place (light). Tracker thread. */
+    /**
+     * Decides what every app gets. Tracker thread.
+     *  - Immersive on: known apps in [mutedUids] are muted + re-rendered in 3D. All other audio
+     *    (apps that don't announce a session, apps that block capture) gets the global in-place
+     *    effect while it plays, so every app is head-tracked without adb.
+     *  - Immersive off: global in-place effect for everything.
+     * Falls back to per-session shaping if this phone refuses global effects.
+     */
     private fun reconcile() {
         val e = immersive
         val immersiveOn = e != null && prefs.immersive && headphones
+        if (!immersiveOn) mutedUids.clear()
         val wanted = HashMap<Int, Mode>()
         val capture = HashSet<Int>()
-        if (!immersiveOn && prefs.global) {
-            wanted[0] = Mode.SHAPE
-        } else {
-            for ((id, s) in sessions) {
-                if (id in failedSessions) continue
-                if (immersiveOn && s.uid > 0 && s.uid !in blockedUids) { wanted[id] = Mode.MUTE; capture += s.uid }
-                else wanted[id] = Mode.SHAPE
+        val probe = HashSet<Int>()
+        val shapeAll = !immersiveOn || globalEngaged
+        if (shapeAll && globalSupported) wanted[0] = Mode.SHAPE
+        for ((id, s) in sessions) {
+            if (id in failedSessions) continue
+            when {
+                immersiveOn && s.uid > 0 && s.uid in mutedUids -> { wanted[id] = Mode.MUTE; capture += s.uid }
+                else -> {
+                    if (immersiveOn && s.uid > 0) probe += s.uid
+                    if (shapeAll && !globalSupported) wanted[id] = Mode.SHAPE
+                }
             }
         }
-        failedSessions += effects.apply(wanted)
+        val failed = effects.apply(wanted).toMutableSet()
+        if (0 in failed) { globalSupported = false; failed.remove(0); if (shapeAll) { reconcile(); return } }
+        failedSessions += failed
         // Only capture apps whose mute actually took effect, so nothing is ever heard twice.
         val muted = capture.filterTo(HashSet()) { uid -> sessions.any { (id, s) -> s.uid == uid && effects.modeOf(id) == Mode.MUTE } }
         captureUids = muted
         e?.uids = if (immersiveOn) muted else emptySet()
+        e?.probeUids = if (immersiveOn) probe - muted else emptySet()
         LiveState.sessions = describe()
     }
 
     private fun describe(): String {
-        if (!(immersive != null && prefs.immersive && headphones) && prefs.global) {
-            return if (effects.isAttached(0)) "All apps (light)" else "Global mode not supported on this device"
-        }
-        if (sessions.isEmpty()) return if (scanner.available) "No player active" else "Waiting for a player to announce its audio"
-        return sessions.entries.joinToString("\n") { (id, s) ->
-            val name = s.pkg.substringAfterLast('.')
+        val lines = sessions.entries.map { (id, s) ->
+            val name = appLabel(s.pkg)
             when {
-                id in failedSessions -> "$name: can't attach"
-                effects.modeOf(id) == Mode.MUTE -> "$name: 3D"
-                s.uid in blockedUids -> "$name: light (app blocks capture)"
-                else -> "$name: light"
+                id in failedSessions -> "$name\tUnavailable"
+                effects.modeOf(id) == Mode.MUTE -> "$name\t3D"
+                else -> "$name\tStandard"
             }
-        }
+        }.distinct().toMutableList()
+        if (globalEngaged || immersive == null || !prefs.immersive) lines += "Other apps\tStandard"
+        return lines.joinToString("\n")
     }
 
-    /** Detects apps that forbid capture (we'd hear silence) and falls back to light mode for them. */
+    private val labels = HashMap<String, String>()
+    private fun appLabel(pkg: String): String = labels.getOrPut(pkg) {
+        try { packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString() }
+        catch (_: Throwable) { pkg.substringAfterLast('.').replaceFirstChar { it.uppercase() } }
+    }
+
+    /**
+     * Self-healing 3D/standard switching, every 250 ms:
+     *  - Something plays but the 3D capture is silent -> the sound comes from an app we don't
+     *    re-render. Engage the global effect; if muted apps produced the silence (they block
+     *    capture), un-mute them so they're never silenced.
+     *  - The probe hears a known, un-muted app -> it's capturable: mute it and render it in 3D.
+     */
     private val watchdog = object : Runnable {
         override fun run() {
             val e = immersive
             val now = SystemClock.uptimeMillis()
             if (e != null && captureUids.isNotEmpty() &&
                 (!e.alive || (e.captureChannels == 0 && now - e.uidsSetMs > 1500))) {
-                // Capture could not start: never leave a muted player silent.
-                Log.w(TAG, "capture unavailable, falling back to light mode")
+                Log.w(TAG, "capture unavailable, falling back to standard mode")
                 main.post { stopImmersive(); evaluate() }
-            } else if (e != null && captureUids.isNotEmpty() && e.captureChannels > 0) {
+            } else if (e != null && prefs.immersive && headphones) {
                 val othersPlaying = audio.activePlaybackConfigurations.size - (if (e.trackPlaying) 1 else 0) > 0
-                if (now - e.lastSignalMs < 500 && captureUids.size == 1) verifiedUids += captureUids
-                if (othersPlaying && now - e.captureStartedMs > 2500 && now - e.lastSignalMs > 2500) {
-                    if (e.captureChannels > 2 && !e.forceStereo) {
-                        Log.i(TAG, "multichannel capture silent: retrying in stereo")
-                        e.forceStereo = true
-                    } else {
-                        val suspects = captureUids - verifiedUids
-                        if (suspects.isNotEmpty()) {
-                            Log.i(TAG, "capture silent; uids $suspects block capture -> light mode")
-                            blockedUids += suspects
-                            reconcile()
-                        }
+                val mainSilentFor = if (captureUids.isEmpty()) Long.MAX_VALUE else now - e.lastSignalMs
+                val captureSettled = captureUids.isEmpty() || now - e.captureStartedMs > 1200
+                var changed = false
+
+                if (captureUids.isNotEmpty() && e.captureChannels > 2 && !e.forceStereo &&
+                    othersPlaying && captureSettled && mainSilentFor > 1200) {
+                    e.forceStereo = true                       // multichannel capture silent on this phone
+                } else {
+                    // 1) Muted apps silent while something plays: they block capture (or aren't the source).
+                    if (captureUids.isNotEmpty() && othersPlaying && captureSettled && mainSilentFor > 1200) {
+                        val pkgs = sessions.values.filter { it.uid in mutedUids }.map { it.pkg }.toSet()
+                        if (mutedUids.size == 1) prefs.addBlocked(pkgs)
+                        mutedUids.clear(); changed = true
                     }
+                    // 2) Probe hears an un-muted known app: promote it to 3D.
+                    if (now - e.probeSignalMs < 400 && e.probeUids.isNotEmpty()) {
+                        val promote = e.probeUids
+                        mutedUids += promote
+                        prefs.removeBlocked(sessions.values.filter { it.uid in promote }.map { it.pkg }.toSet())
+                        changed = true
+                    }
+                    // 3) Global effect only while audio we can't re-render is playing.
+                    val wantGlobal = othersPlaying && (captureUids.isEmpty() || mainSilentFor > 600)
+                    if (wantGlobal != globalEngaged) { globalEngaged = wantGlobal; changed = true }
                 }
+                if (changed) reconcile()
             }
             LiveState.render = renderDescription()
-            tracker.postDelayed(this, 500)
+            LiveState.width = e?.effectiveWidth ?: prefs.stageHalfWidthDeg
+            LiveState.room = e?.effectiveRoom ?: (prefs.room / 100f)
+            LiveState.levels = e?.levels
+            LiveState.layout = when {
+                e == null || !prefs.immersive || captureUids.isEmpty() -> LiveState.LAYOUT_STANDARD
+                e.surround -> LiveState.LAYOUT_SURROUND
+                else -> LiveState.LAYOUT_UPMIX
+            }
+            tracker.postDelayed(this, 250)
         }
     }
 
     private fun renderDescription(): String {
         val e = immersive
         return when {
-            e == null -> "Light (EQ head-shadow)"
-            !prefs.immersive -> "Light (immersive paused)"
-            e.captureChannels == 0 -> "Immersive 3D: waiting for a player"
+            e == null || !prefs.immersive -> "Standard · zero added delay"
+            e.captureChannels == 0 || !e.trackPlaying -> "Immersive 3D · ready"
             else -> {
-                val layout = if (e.surround) "surround → virtual speakers" else "stereo → 3D up-mix"
-                "Immersive 3D, $layout · ${(e.latencySec * 1000).toInt()} ms"
+                val layout = if (e.surround) "Surround · virtual speakers" else "Stereo · 3D up-mix"
+                "Immersive 3D · $layout · ${(e.latencySec * 1000).toInt()} ms"
             }
         }
     }
@@ -284,12 +331,12 @@ class TrackerService : LifecycleService() {
         val now = SystemClock.uptimeMillis()
         if (existing != null && existing.uid == uid) { existing.seen = now; return }
         sessions[id] = Session(pkg, uid, fromDump, now)
+        if (uid > 0 && pkg !in prefs.blocked) mutedUids += uid
         reconcile()
     }
 
     private fun requestScan() {
-        if (!scanner.available) { LiveState.dumpAvailable = false; return }
-        LiveState.dumpAvailable = true
+        if (!scanner.available) return
         try {
             scanExec.execute {
                 val found = scanner.scan() ?: return@execute
@@ -387,7 +434,7 @@ class TrackerService : LifecycleService() {
         val s = prefs.strength / 100.0 * 1.2
         val smooth = prefs.smoothness / 100.0
         val inv = prefs.invert; val recenter = prefs.autoRecenter; val world = prefs.worldAnchor
-        immersive?.let { it.stageHalfWidth = prefs.stageHalfWidthDeg; it.roomAmount = prefs.room / 100f }
+        immersive?.let { it.stageHalfWidth = prefs.stageHalfWidthDeg; it.roomAmount = prefs.room / 100f; it.autoTune = prefs.autoTune }
         tracker.post {
             engine.mode = if (faceMode) HeadPoseEngine.Mode.FACE else HeadPoseEngine.Mode.MOTION
             engine.smoothness = smooth; engine.invert = inv; engine.autoRecenter = recenter; engine.worldAnchor = world
@@ -397,6 +444,9 @@ class TrackerService : LifecycleService() {
     }
 
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == Prefs.K_IMMERSIVE && prefs.immersive) tracker.post {
+            sessions.values.forEach { if (it.uid > 0 && it.pkg !in prefs.blocked) mutedUids += it.uid }
+        }
         applyPrefs()
         if (key == Prefs.K_FACE_MODE) goForeground(withProjection = projection != null)
         evaluate()

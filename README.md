@@ -1,38 +1,68 @@
 # Head Tracker: AR-style head-tracked 3D audio for any earbuds
 
-A small (~1.4 MB) Android app that gives earbuds with no motion sensors, such as the Anker
+A small (~1.5 MB) Android app that gives earbuds with no motion sensors, such as the Anker
 Soundcore P30i, head-tracked spatial audio. Every instrument, voice and effect in a song stays at
 its own fixed spot **in the room**. Turn your head and the whole scene stays put, including when
 it ends up behind you. It runs in the background and works with the players you already use.
 
 ## Two audio modes
 
-| | **Immersive 3D** (default) | **Light** |
+| | **Immersive 3D** (default) | **Standard** |
 |---|---|---|
-| How | Captures the player's audio, mutes the original, and plays a fully re-rendered binaural version | Per-ear EQ applied in place to the player's audio |
+| How | Captures the player's audio, mutes the original, and plays a fully re-rendered binaural version | Per-ear EQ applied in place to every app (global effect) |
 | What you get | Every sound gets its own direction, rendered with measured human-ear responses (HRTFs), correct ear-timing differences, front/back cues and a small virtual room. Surround (5.1/7.1) plays through virtual speakers | A balance and tone shift between the ears |
-| Added delay | About 25 ms of processing plus the capture/playback buffers (head prediction makes up for it) | None |
-| Best for | Music, anything where you want the AR feeling | Video, if you notice lip-sync |
+| Added delay | ~10 ms of processing plus the audio buffers (head prediction makes up for it) | None |
+
+**Every app is covered, with no adb.** Apps that announce their audio session get Immersive 3D.
+Any other app that plays (or an app that blocks capture) automatically gets the Standard effect
+on the whole output. A silent second "probe" capture notices when an un-muted app can be captured
+and upgrades it to 3D by itself. Apps that block capture are remembered, so they never go silent
+for a moment.
+
+### Sound quality
+
+The 3D render is built to sound like the original song, only placed around you:
+
+- **Timbre lock:** while you face forward, a smooth 1/3-octave EQ is learned that makes the 3D
+  output's tonal balance match the original. It freezes while you look away, so the natural
+  "darker from behind" cue is kept.
+- **Bass passes through untouched** (below ~150 Hz): no boom, no phasiness.
+- **512-point STFT** (10.7 ms windows), so drums stay sharp.
+- **Smoothed per-bin decisions,** so there's no swirly "musical noise".
+- **Look-ahead limiter with 1 dB of headroom** instead of hard clipping.
+- **Self-adjusting output buffer,** so there's no crackle.
+- **High-passed room:** the room only adds mids and highs, so it adds space without mud.
+
+Measured, with an offline test against the original signal:
+
+| | Previous version | Now |
+|---|---|---|
+| Tonal deviation, 63 Hz – 12.5 kHz | +3.1 dB (250 Hz) … −4.9 dB (2 kHz) | **±0.1 dB** |
+| 1 kHz tone, worst harmonic | — | **−81.5 dB** |
+| 60 Hz bass level | rendered | **passes through (−1 dB headroom)** |
+
+### Auto-Tune
+
+The app continuously measures each song's stereo width and how reverberant it already is:
+- **Narrow mixes** get a slightly wider stage.
+- **Dry recordings** get more room, so they leave your head.
+- **Reverberant or bass-heavy songs** get less room, so they stay clean.
+- **Surround** uses a fixed, light room.
+
+Changes glide in over a few seconds. Turn Auto-Tune off to set Stage Width and Room yourself.
 
 ### Immersive 3D renderer
 
-- **Stereo → 3D up-mix:** this works per frequency band (~47 Hz wide), updated every 5.3 ms.
+- **Stereo → 3D up-mix:** this works per frequency band, updated every 2.7 ms.
   - The correlated part of each band becomes a **direct source** at the direction given by its
-    L/R panning. So the guitar panned left, the vocal in the centre and the hi-hat on the right
-    each keep their *own* spot on a 80°-wide stage (adjustable).
-  - The uncorrelated part (reverb, room, wide pads) and anti-phase content become **ambience**
-    placed to the sides and behind (±110°).
-  - Sound that is only in one channel is treated as a hard-panned instrument, not as ambience.
-- **5.1 / 7.1 input:** detected automatically and rendered as virtual speakers at the standard
-  angles (L/R ±30°, C 0°, sides ±90°, rears ±115–145°).
-- **HRTF:** the MIT KEMAR measured, diffuse-field-equalised horizontal-plane responses, plus
-  interaural time difference from Woodworth's spherical-head formula, interpolated per degree.
-- **Virtual room:** 8 early reflections, each at a real direction in the room and rotating with
-  your head, plus a short diffuse tail. This is what moves sound *out* of your head.
-- **Latency compensation:** the app measures the real Bluetooth delay and renders for where your
-  head *will be* when the sound reaches your ears, up to 150 ms ahead.
-- **Cost:** about 50× faster than real time on a desktop JVM, so a small fraction of one phone CPU
-  core.
+    L/R panning, so each instrument keeps its own spot on the stage.
+  - The uncorrelated part (reverb, wide pads) becomes **ambience** to the sides and behind
+    (±110°).
+- **5.1 / 7.1 input:** detected automatically and rendered as virtual speakers.
+- **HRTF:** MIT KEMAR measured, diffuse-field-equalised responses, plus Woodworth interaural
+  time difference.
+- **Virtual room:** 8 head-tracked early reflections plus a short diffuse tail.
+- **Latency compensation:** the measured Bluetooth delay is predicted away (up to 150 ms).
 
 ## Head tracking
 
@@ -42,8 +72,9 @@ it ends up behind you. It runs in the background and works with the players you 
 | **Phone motion** | Gyro only. Assumes the phone turns with your body (pocket). No camera. |
 
 Smoothing pipeline: One Euro filter → velocity prediction (hides camera latency) → gyro fusion →
-100 Hz control loop with a slew limit. **Auto-recenter** lets the scene slowly follow you when you
-settle into a new direction, like AirPods do. If your face is lost, the last pose is held briefly,
+100 Hz control loop with a slew limit. **Auto-recenter** (off by default) lets the scene slowly follow
+you when you settle into a new direction. Recenter by hand with the button in the app or the
+notification. If your face is lost, the last pose is held briefly,
 then the scene glides back to the front.
 
 ## Install and use
@@ -55,34 +86,33 @@ then the scene glides back to the front.
    used, nothing is recorded or stored, and nothing leaves the phone.
 3. **Turn off Dolby Atmos / spatial / 3D effects** in your phone's sound settings while Immersive
    3D is on, so the sound isn't virtualised twice.
-4. Start tracking *before* pressing play, or pause and resume once. The status lines show the
-   render mode, the measured latency, and per app whether it is in **3D** or **light**.
+4. Start tracking *before* pressing play, or pause and resume once. **Now Playing** shows the
+   render mode, the measured latency, and per app whether it is in **3D** or **Standard**.
 5. Turn your head and check the on-screen indicator. If it moves the wrong way, turn on
    **Invert direction**. Use **Recenter** to set "front".
 
-### Optional: catch every player
-
-Players that announce their audio session (Spotify, Poweramp, VLC, YouTube Music, Media3/ExoPlayer
-apps and others) work automatically. To also catch players that don't, connect the phone to a
-computer once and run:
-
-```
-adb shell pm grant dev.headtracker android.permission.DUMP
-```
-
-The app then finds every playing app's audio session by itself.
-
 Requires Android 10+ and Google Play services (for the face model).
+
+## The app
+
+A dark/light adaptive, iOS-style interface:
+- a live **3D dummy head** (OpenGL, procedurally sculpted, studio-lit) that turns with you,
+  surrounded by **speakers fixed in the room** that glow with the music;
+- grouped settings cards, segmented controls and switches;
+- critically damped **spring animations** that you can interrupt, plus haptics;
+- a responsive layout: side by side in landscape and on tablets, with a centred reading column.
+
+It renders only when something changes, so it costs nothing when idle.
 
 ## Safety and fallbacks
 
-- A player's original audio is muted **only** after capture of that app is confirmed working, so
-  you never hear it twice.
-- Some apps forbid capture. If muting one leads to silence, the app detects it within about 2.5 s,
-  un-mutes it and uses Light mode for that app from then on.
-- If capture can't start at all, everything falls back to Light mode.
-- Unplug or disconnect the earbuds and every app is un-muted at once. If the app is stopped or
-  killed, Android removes its effects automatically.
+- A player is muted **only** after capture of that app is confirmed working, so you never hear it
+  twice.
+- If muting an app leads to silence (the app blocks capture), it is un-muted within about 1.2 s,
+  switched to Standard and remembered.
+- If capture can't start at all, everything falls back to Standard.
+- Disconnect the earbuds and every app is un-muted immediately. If the app is stopped or killed,
+  Android removes its effects automatically.
 
 ## Honest limitations
 
@@ -93,7 +123,7 @@ Requires Android 10+ and Google Play services (for the face model).
   blur slightly together.
 - Height (Atmos elevation) isn't reproduced. Only yaw (turning left/right) is tracked.
 - Face mode needs the phone to see you.
-- Apps that block audio capture get Light mode only. The DUMP grant doesn't change that.
+- Apps that block audio capture get Standard mode only.
 
 ## Credits
 
