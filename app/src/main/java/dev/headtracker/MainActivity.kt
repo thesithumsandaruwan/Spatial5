@@ -125,7 +125,7 @@ class MainActivity : Activity() {
         bindSwitch(R.id.pause_screen, prefs.pauseScreenOff) { prefs.pauseScreenOff = it }
 
         findViewById<View>(R.id.diag_copy).setOnClickListener {
-            val text = deviceReport + "\n" + LiveState.diag
+            val text = deviceReport + "\n" + spatializerProbe + "\n" + LiveState.diag
             getSystemService(android.content.ClipboardManager::class.java)
                 .setPrimaryClip(android.content.ClipData.newPlainText("Spatial5 diagnostics", text))
             it.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
@@ -134,6 +134,10 @@ class MainActivity : Activity() {
 
         updateCaptions(); updateTuning(); updateText()
     }
+
+    /** Result of the spatializer-engine experiment (filled in the background the first time Diagnostics is shown). */
+    @Volatile private var spatializerProbe = ""
+    private var probeStarted = false
 
     /** Device facts: Android's own spatializer / head-tracking support and the audio effects on offer. */
     private val deviceReport: String by lazy {
@@ -331,7 +335,14 @@ class MainActivity : Activity() {
 
         render.text = if (running) LiveState.render else "Head tracking is off"
         val diag = findViewById<TextView>(R.id.diag)
-        if (diag.isShown) diag.text = deviceReport + "\n" + (if (running) LiveState.diag else "service stopped")
+        if (diag.isShown) {
+            if (!probeStarted) {
+                probeStarted = true; spatializerProbe = "spatializer engine test: running…"
+                Thread { spatializerProbe = "spatializer engine test: " +
+                    dev.headtracker.audio.SpatializerProbe.run(getSystemService(android.media.AudioManager::class.java)) }.start()
+            }
+            diag.text = deviceReport + "\n" + spatializerProbe + "\n" + (if (running) LiveState.diag else "service stopped")
+        }
         val sessions = if (running) LiveState.sessions else ""
         if (sessions != lastSessions) { lastSessions = sessions; buildAppRows(sessions) }
     }
