@@ -26,6 +26,10 @@ it ends up behind you. It runs in the background and works with the players you 
     (players seen before first), halving the set each time (~6 tests for 40 apps).
   - Then it goes through the normal per-app 3D path. Advanced → Diagnostics → *events* shows each
     step.
+  - Identification tries the last identified app first, then known players, then everything else
+    (usually 1–4 short tests). **Refresh** in Now Playing retries everything immediately.
+- **New sessions of a captured app** (e.g. YouTube starts one per video) are muted straight away
+  while its 3D audio is flowing, so the original never plays on top of the 3D version.
 - **Apps that block capture** are un-muted within ~1.5 s, switched to Standard (the global
   effect) and remembered.
 - **Apps that produced 3D audio once** are remembered as verified, so a quiet gap between songs
@@ -119,6 +123,10 @@ then the scene glides back to the front.
    render mode, the measured latency, and per app whether it is in **3D** or **Standard**.
 5. Turn your head and check the on-screen indicator. If it moves the wrong way, turn on
    **Invert direction**. Use **Recenter** to set "front".
+
+**Signing:** release builds use a Spatial5 key from `signing/` when present (git-ignored, never
+committed), otherwise the debug key. Every APK signed with the same key installs as an update and
+keeps your settings.
 
 Requires Android 10+ and Google Play services (for the face model).
 
