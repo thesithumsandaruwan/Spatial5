@@ -399,6 +399,8 @@ class TrackerService : LifecycleService() {
                 append("\nglobal effect: ").append(if (!globalSupported) "unsupported" else if (globalEngaged || immersive == null) "on" else "standby")
                 append("\nblocked apps: ").append(prefs.blocked.joinToString { it.substringAfterLast('.') }.ifEmpty { "none" })
                 append(" · rejected sessions: ").append(rejectedSessions.size)
+                append("\ncamera: brightness ").append(LiveState.cameraLuma).append("/255")
+                    .append(if (LiveState.lowLight) " · low-light boost on" else "").append(" · ").append("%.0f".format(LiveState.fps)).append(" fps")
                 append("\nlast scan: ").append(prober.lastReport)
             }
             LiveState.width = e?.effectiveWidth ?: prefs.stageHalfWidthDeg
@@ -570,6 +572,8 @@ class TrackerService : LifecycleService() {
             effects.update(-LiveState.predictedYaw(LIGHT_LEAD).toDouble(), strength)
             LiveState.faceVisible = engine.faceVisible
             LiveState.fps = face.fps
+            LiveState.cameraLuma = face.brightness
+            LiveState.lowLight = face.lowLightActive
             tracker.postDelayed(this, TICK_MS)
         }
     }

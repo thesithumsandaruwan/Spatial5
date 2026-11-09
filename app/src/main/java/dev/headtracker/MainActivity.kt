@@ -387,7 +387,7 @@ class MainActivity : Activity() {
             s.startsWith("Screen off") -> "Camera paused"
             s.startsWith("Camera permission") -> "Tracking · Motion"
             prefs.faceMode && LiveState.active -> if (!LiveState.faceVisible) "Looking for you…"
-                else if (LiveState.cinema) "Cinema · Face" else "Tracking · Face"
+                else (if (LiveState.cinema) "Cinema · Face" else "Tracking · Face") + if (LiveState.lowLight) " · Low light" else ""
             else -> if (LiveState.cinema) "Cinema · Motion" else "Tracking · Motion"
         }
     }

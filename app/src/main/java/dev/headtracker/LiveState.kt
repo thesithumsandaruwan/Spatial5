@@ -8,6 +8,9 @@ object LiveState {
     @Volatile var yawVelocity = 0f       // deg/s
     @Volatile var faceVisible = false
     @Volatile var fps = 0f
+    /** Camera brightness 0..255 and whether low-light face detection is active. */
+    @Volatile var cameraLuma = 0
+    @Volatile var lowLight = false
     @Volatile var status = ""
     @Volatile var sessions = ""
     @Volatile var render = ""

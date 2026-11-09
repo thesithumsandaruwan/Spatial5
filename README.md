@@ -85,6 +85,20 @@ Changes glide in over a few seconds. Turn Auto-Tune off to set Stage Width and R
 | **Face** (default) | Front camera + ML Kit fast face detector on 320×240 frames at 24 fps gives head yaw relative to the phone. **World lock** adds the phone's gyro heading, so the scene stays fixed in the room even when the phone moves. |
 | **Phone motion** | Gyro only. Assumes the phone turns with your body (pocket). No camera. |
 
+**Low light** (dark rooms, movie nights):
+- **Longer exposures:** the camera may use a variable frame rate, so auto-exposure can lengthen
+  frames (a fixed 24 fps capped them at 1/24 s).
+- **Exposure follows your face:** it meters on your face once found, and adds +1 EV when the
+  scene is dark.
+- **Contrast boost:** dark frames go to the detector as a contrast-stretched, gamma-lifted grey
+  image (1st–99th percentile stretch).
+- **Sharper, more distant faces:** analysis runs at 640×480 and accepts faces down to 10% of the
+  frame.
+- **Robust re-acquire:** after repeated misses, it alternates with ML Kit's slower "accurate"
+  model until it finds you.
+
+The status shows "Low light" while the boost is active.
+
 Smoothing pipeline: One Euro filter → velocity prediction (hides camera latency) → gyro fusion →
 100 Hz control loop with a slew limit. **Auto-recenter** (off by default) lets the scene slowly follow
 you when you settle into a new direction. Recenter by hand with the button in the app or the
