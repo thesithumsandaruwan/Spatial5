@@ -99,6 +99,8 @@ class TrackerService : LifecycleService() {
     @Volatile private var immersive: ImmersiveEngine? = null
     private var projection: MediaProjection? = null
     private var active = false
+    /** Paused: nothing tracked, captured or muted, but the capture permission is kept (no new prompt on resume). */
+    @Volatile private var paused = false
     private var cameraOn = false
     private var screenOn = true
     private var lastStatus = ""
@@ -145,8 +147,11 @@ class TrackerService : LifecycleService() {
         when (intent?.action) {
             ACTION_STOP -> { stopSelf(); return START_NOT_STICKY }
             ACTION_RECENTER -> tracker.post { engine.recenter() }
-            ACTION_REFRESH -> { goForeground(withProjection = projection != null); evaluate() }
+            ACTION_PAUSE -> setPaused(true)
+            ACTION_RESUME -> setPaused(false)
+            ACTION_REFRESH -> { goForeground(withProjection = projection != null); setPaused(false) }
             ACTION_PROJECTION -> {
+                paused = false; LiveState.paused = false
                 val code = intent.getIntExtra(EXTRA_CODE, Activity.RESULT_CANCELED)
                 val data = IntentCompat.getParcelableExtra(intent, EXTRA_DATA, Intent::class.java)
                 if (code == Activity.RESULT_OK && data != null) startImmersive(code, data)
@@ -155,8 +160,15 @@ class TrackerService : LifecycleService() {
         return START_NOT_STICKY
     }
 
+    private fun setPaused(p: Boolean) {
+        paused = p; LiveState.paused = p
+        tracker.post { reconcile() }
+        lastStatus = ""                       // force a notification refresh (actions change)
+        evaluate()
+    }
+
     override fun onDestroy() {
-        LiveState.running = false; LiveState.active = false; LiveState.immersiveRunning = false
+        LiveState.running = false; LiveState.active = false; LiveState.immersiveRunning = false; LiveState.paused = false
         main.removeCallbacksAndMessages(null)
         prefs.sp.unregisterOnSharedPreferenceChangeListener(prefListener)
         unregisterReceiver(sessionReceiver)
@@ -185,9 +197,12 @@ class TrackerService : LifecycleService() {
             getSystemService(MediaProjectionManager::class.java).getMediaProjection(code, data)
         } catch (t: Throwable) { Log.e(TAG, "projection refused", t); null } ?: return
         p.registerCallback(object : MediaProjection.Callback() {
-            override fun onStop() { main.post { if (projection === p) { stopImmersive(); evaluate() } } }
+            override fun onStop() {
+                main.post { if (projection === p) { LiveState.immersiveLost = true; stopImmersive(); lastStatus = ""; evaluate() } }
+            }
         }, main)
         projection = p
+        LiveState.immersiveLost = false
         val e = ImmersiveEngine(this, p) { lead -> LiveState.predictedYaw(lead) }
         e.stageHalfWidth = prefs.stageHalfWidthDeg
         e.roomAmount = prefs.room / 100f
@@ -219,6 +234,12 @@ class TrackerService : LifecycleService() {
      */
     private fun reconcile() {
         val e = immersive
+        if (paused) {
+            effects.apply(emptyMap())                 // un-mute every app, no global effect
+            e?.captureAll = false; e?.uids = emptySet(); e?.probeUids = emptySet(); captureUids = emptySet()
+            LiveState.sessions = ""
+            return
+        }
         val immersiveOn = e != null && prefs.immersive && headphones
         if (!immersiveOn) { mutedUids.clear(); mutedDiscovered.clear() }
         val wanted = HashMap<Int, Mode>()
@@ -292,7 +313,7 @@ class TrackerService : LifecycleService() {
                 (!e.alive || (e.captureChannels == 0 && now - e.uidsSetMs > 1500))) {
                 Log.w(TAG, "capture unavailable, falling back to standard mode")
                 main.post { stopImmersive(); evaluate() }
-            } else if (e != null && prefs.immersive && headphones) {
+            } else if (e != null && prefs.immersive && headphones && !paused) {
                 val media = mediaPlayers(e.trackPlaying)
                 val anyMuted = captureUids.isNotEmpty()
                 val mainSilentFor = if (!anyMuted) Long.MAX_VALUE else now - e.lastSignalMs
@@ -469,7 +490,7 @@ class TrackerService : LifecycleService() {
         val phones = headphonesConnected()
         if (phones != headphones) { headphones = phones; tracker.post { reconcile() } }
         val playing = somethingPlaying()
-        val shouldRun = playing && phones
+        val shouldRun = playing && phones && !paused
         val faceMode = prefs.faceMode && hasCamera()
         val wantCamera = shouldRun && faceMode && (screenOn || !prefs.pauseScreenOff)
 
@@ -490,6 +511,7 @@ class TrackerService : LifecycleService() {
         }
         LiveState.active = active
         val status = when {
+            paused -> "Paused"
             !phones -> "Paused: connect your earbuds"
             !playing -> "Idle: waiting for media to play"
             prefs.faceMode && !hasCamera() -> "Camera permission missing: using phone motion"
@@ -615,19 +637,25 @@ class TrackerService : LifecycleService() {
 
     private fun buildNotification(text: String): Notification {
         val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), flags)
-        val recenter = PendingIntent.getService(this, 1, Intent(this, TrackerService::class.java).setAction(ACTION_RECENTER), flags)
-        val stop = PendingIntent.getService(this, 2, Intent(this, TrackerService::class.java).setAction(ACTION_STOP), flags)
-        return NotificationCompat.Builder(this, CHANNEL)
+        val lost = LiveState.immersiveLost && prefs.immersive && !paused
+        val openIntent = Intent(this, MainActivity::class.java).apply { if (lost) putExtra(MainActivity.EXTRA_RESTORE, true) }
+        val open = PendingIntent.getActivity(this, if (lost) 3 else 0, openIntent, flags)
+        fun service(code: Int, action: String) =
+            PendingIntent.getService(this, code, Intent(this, TrackerService::class.java).setAction(action), flags)
+        val b = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle(getString(R.string.app_name))
-            .setContentText(text)
+            .setContentText(if (lost) "Immersive 3D was stopped by Android · tap to restore" else text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
             .setContentIntent(open)
-            .addAction(0, getString(R.string.recenter), recenter)
-            .addAction(0, "Stop", stop)
+        if (paused) {
+            b.addAction(0, "Resume", service(4, ACTION_RESUME)).addAction(0, "Turn off", service(2, ACTION_STOP))
+        } else {
+            b.addAction(0, getString(R.string.recenter), service(1, ACTION_RECENTER)).addAction(0, "Pause", service(5, ACTION_PAUSE))
+        }
+        return b
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
     }
@@ -640,6 +668,8 @@ class TrackerService : LifecycleService() {
         private const val TAG = "TrackerService"
         const val ACTION_STOP = "dev.headtracker.STOP"
         const val ACTION_RECENTER = "dev.headtracker.RECENTER"
+        const val ACTION_PAUSE = "dev.headtracker.PAUSE"
+        const val ACTION_RESUME = "dev.headtracker.RESUME"
         const val ACTION_REFRESH = "dev.headtracker.REFRESH"
         const val ACTION_PROJECTION = "dev.headtracker.PROJECTION"
         private const val EXTRA_CODE = "code"

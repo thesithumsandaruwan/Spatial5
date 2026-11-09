@@ -3,6 +3,9 @@
     <string name="title">Spatial5</string>
     <string name="start">Start Head Tracking</string>
     <string name="stop">Stop</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Resume</string>
+    <string name="quit">Turn Off</string>
     <string name="recenter">Recenter</string>
     <string name="enable_immersive">Allow Audio Capture for Immersive 3D</string>
     <string name="sec_audio">Audio</string>
@@ -11,8 +14,10 @@
     <string name="sec_advanced">Advanced</string>
     <string name="mode_immersive">Immersive 3D</string>
     <string name="mode_standard">Standard</string>
-    <string name="caption_immersive">Every instrument gets its own fixed place in the room, re-rendered in real time. Apps that can\'t be re-rendered automatically use Standard.</string>
-    <string name="caption_standard">Head tracking applied directly to every app, with no added delay. Best for video lip-sync.</string>
+    <string name="caption_immersive">Every instrument gets its own fixed place in the room, re-rendered in real time. Android asks once to share audio; Pause keeps it, so you won\'t be asked again until you turn Spatial5 off or restart the phone.</string>
+    <string name="caption_standard">No permission prompt and no added delay: head tracking is applied directly to every app. Lighter than Immersive 3D, best for video.</string>
+    <string name="tip_dolby_standard">Tip: keep Dolby Atmos on in Standard. Dolby puts the sound around you, Spatial5 moves it with your head.</string>
+    <string name="tip_dolby_immersive">Tip: turn Dolby Atmos off while Immersive 3D is on, so the sound isn\'t virtualised twice.</string>
     <string name="auto_tune">Auto-Tune</string>
     <string name="auto_tune_sub">Finds the best stage and room for each song</string>
     <string name="width">Stage Width</string>
@@ -32,5 +37,5 @@
     <string name="diagnostics">Diagnostics</string>
     <string name="copy">Copy</string>
     <string name="notif_channel">Head tracking</string>
-    <string name="help">For the cleanest sound, turn off Dolby Atmos or other spatial effects in your phone\'s sound settings while Immersive 3D is on. When Android asks to share your screen, choose \"Entire screen\": only audio is used, and nothing is recorded or leaves your phone.\n\nHRTF data: MIT Media Lab KEMAR (Gardner &amp; Martin). Head model: \"Lee Perry-Smith\" scan by Infinite Realities, CC BY 3.0.</string>
+    <string name="help">When Android asks to share your screen, choose \"Entire screen\": only audio is used, and nothing is recorded or leaves your phone.\n\nHRTF data: MIT Media Lab KEMAR (Gardner &amp; Martin). Head model: \"Lee Perry-Smith\" scan by Infinite Realities, CC BY 3.0.</string>
 </resources>

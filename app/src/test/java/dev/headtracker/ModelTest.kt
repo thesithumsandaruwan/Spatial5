@@ -36,6 +36,18 @@ class ModelTest {
         for (i in 0 until model.bandCount) assertEquals(bl[0][i], br[1][i], 1e-4f)
     }
 
+    @Test fun standardModeMovesTheStageClearly() {
+        val (g30, _) = run(30.0)
+        assertTrue("balance at 30 deg: ${g30[0] - g30[1]} dB", g30[0] - g30[1] > 5f)
+        val (g80, _) = run(80.0)
+        assertTrue("saturates, never extreme: ${g80[0] - g80[1]} dB", g80[0] - g80[1] < 9.5f)
+        // Scene behind you: both ears lose high frequencies.
+        val g = FloatArray(2); val b = Array(2) { FloatArray(model.bandCount) }
+        model.compute(160.0, 0.72, g, b)
+        val hi = model.bandCount - 1
+        assertTrue("rear darkening: ${b[0][hi]} / ${b[1][hi]}", b[0][hi] < -2f && b[1][hi] < -2f)
+    }
+
     @Test fun oneEuroSettles() {
         val f = OneEuroFilter(1.0, 0.02)
         var y = 0.0

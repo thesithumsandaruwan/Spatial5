@@ -5,6 +5,7 @@ import kotlin.math.cos
 import kotlin.math.log10
 import kotlin.math.sin
 import kotlin.math.sqrt
+import kotlin.math.tanh
 
 /**
  * Converts "where the listener's head points" into per-ear EQ + gain changes.
@@ -38,27 +39,35 @@ class HeadShadowModel(
      */
     fun compute(azimuthDeg: Double, strength: Double, outGain: FloatArray, outBands: Array<FloatArray>) {
         val az = azimuthDeg.coerceIn(-MAX_AZ, MAX_AZ)
-        val thetaL = angularDistance(az, 90.0)
-        val thetaR = angularDistance(az, -90.0)
+        // Head shadow from the true direction (also behind you); balance below uses the clamped one.
+        val thetaL = angularDistance(azimuthDeg, 90.0)
+        val thetaR = angularDistance(azimuthDeg, -90.0)
         val shadowScale = strength * 0.9
+        // Scene behind you (motion mode / big turns): both ears lose "air", as with a real rear source.
+        val rear = smooth((abs(azimuthDeg) - 70.0) / 80.0) * strength * REAR_DB
         for (b in 0 until bandCount) {
-            outBands[0][b] = shape((shadowDb(centers[b], thetaL) - refDb[b]) * shadowScale)
-            outBands[1][b] = shape((shadowDb(centers[b], thetaR) - refDb[b]) * shadowScale)
+            val air = if (centers[b] > 2000) rear * ((centers[b] - 2000) / 6000).coerceAtMost(1.0) else 0.0
+            outBands[0][b] = shape((shadowDb(centers[b], thetaL) - refDb[b]) * shadowScale - air)
+            outBands[1][b] = shape((shadowDb(centers[b], thetaR) - refDb[b]) * shadowScale - air)
         }
-        // Time/intensity trading term: the near ear gets a little louder, the far ear mostly quieter
-        // (biased towards cutting to keep headroom).
-        val pan = TRADE_DB * strength * sin(Math.toRadians(az))
-        val near = abs(pan) * 0.35
-        val far = -abs(pan) * 0.65
+        // Stage shift. Dolby (or any virtualiser after us) renders L/R as virtual speakers, so the image
+        // only moves if the balance changes a lot: a saturating curve gives ~6 dB at 30 deg and ~8 dB
+        // beyond 60 deg (default strength), applied mostly as a cut on the far side to keep headroom.
+        val pan = BALANCE_DB * strength * tanh(1.6 * sin(Math.toRadians(az)))
+        val near = abs(pan) * 0.25
+        val far = -abs(pan) * 0.75
         if (pan >= 0) { outGain[0] = near.toFloat(); outGain[1] = far.toFloat() }
         else { outGain[0] = far.toFloat(); outGain[1] = near.toFloat() }
     }
+
+    private fun smooth(x: Double): Double { val t = x.coerceIn(0.0, 1.0); return t * t * (3 - 2 * t) }
 
     private fun shape(db: Double): Float = db.coerceIn(-MAX_CUT_DB, MAX_BOOST_DB).toFloat()
 
     companion object {
         const val MAX_AZ = 90.0
-        const val TRADE_DB = 6.0
+        const val BALANCE_DB = 12.0
+        const val REAR_DB = 8.0
         const val MAX_BOOST_DB = 3.0
         const val MAX_CUT_DB = 18.0
         private const val HEAD_RADIUS_M = 0.0875

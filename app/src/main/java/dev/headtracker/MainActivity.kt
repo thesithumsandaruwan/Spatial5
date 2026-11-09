@@ -76,9 +76,13 @@ class MainActivity : Activity() {
         // Primary action
         Springs.pressable(toggle, 0.97f); Springs.pressable(enableImmersive, 0.97f)
         toggle.setOnClickListener {
-            if (LiveState.running) TrackerService.send(this, TrackerService.ACTION_STOP)
-            else if (ensurePermissions()) begin()
+            when {
+                !LiveState.running -> if (ensurePermissions()) begin()
+                LiveState.paused -> TrackerService.send(this, TrackerService.ACTION_RESUME)   // permission kept: no prompt
+                else -> TrackerService.send(this, TrackerService.ACTION_PAUSE)
+            }
         }
+        findViewById<View>(R.id.quit).setOnClickListener { TrackerService.send(this, TrackerService.ACTION_STOP) }
         enableImmersive.setOnClickListener { if (ensurePermissions()) begin() }
         findViewById<View>(R.id.recenter).apply {
             Springs.pressable(this, 0.9f)
@@ -133,6 +137,16 @@ class MainActivity : Activity() {
         }
 
         updateCaptions(); updateTuning(); updateText()
+        handleRestore(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handleRestore(intent) }
+
+    /** Opened from "Immersive 3D was stopped by Android · tap to restore": ask again right away. */
+    private fun handleRestore(i: Intent?) {
+        if (i?.getBooleanExtra(EXTRA_RESTORE, false) != true) return
+        i.removeExtra(EXTRA_RESTORE)
+        if (prefs.immersive && ensurePermissions()) begin()
     }
 
     /** Result of the spatializer-engine experiment (filled in the background the first time Diagnostics is shown). */
@@ -193,6 +207,7 @@ class MainActivity : Activity() {
 
     private fun updateCaptions() {
         audioCaption.setText(if (prefs.immersive) R.string.caption_immersive else R.string.caption_standard)
+        findViewById<TextView>(R.id.dolby_tip).setText(if (prefs.immersive) R.string.tip_dolby_immersive else R.string.tip_dolby_standard)
         trackCaption.setText(if (prefs.faceMode) R.string.caption_face else R.string.caption_motion)
         val immersive = prefs.immersive
         for (id in intArrayOf(R.id.auto_row, R.id.width_row, R.id.room_row)) findViewById<View>(id).alpha = if (immersive) 1f else 0.4f
@@ -304,9 +319,12 @@ class MainActivity : Activity() {
 
     private fun updateText() {
         val running = LiveState.running
-        toggle.setText(if (running) R.string.stop else R.string.start)
-        (toggle.background.mutate() as? GradientDrawable)?.setColor(getColor(if (running) R.color.fill else R.color.accent))
-        toggle.setTextColor(if (running) getColor(R.color.accent) else 0xFFFFFFFF.toInt())
+        val paused = running && LiveState.paused
+        toggle.setText(when { !running -> R.string.start; paused -> R.string.resume; else -> R.string.pause })
+        val primary = !running || paused
+        (toggle.background.mutate() as? GradientDrawable)?.setColor(getColor(if (primary) R.color.accent else R.color.fill))
+        toggle.setTextColor(if (primary) 0xFFFFFFFF.toInt() else getColor(R.color.accent))
+        findViewById<View>(R.id.quit).visibility = if (running) View.VISIBLE else View.GONE
         enableImmersive.visibility = if (running && prefs.immersive && !LiveState.immersiveRunning) View.VISIBLE else View.GONE
 
         val yaw = LiveState.yaw
@@ -350,6 +368,7 @@ class MainActivity : Activity() {
     private fun shortStatus(): String {
         val s = LiveState.status
         return when {
+            LiveState.paused -> "Paused"
             s.startsWith("Paused") -> "Connect earbuds"
             s.startsWith("Idle") -> "Waiting for music"
             s.startsWith("Screen off") -> "Camera paused"
@@ -388,9 +407,10 @@ class MainActivity : Activity() {
         }
     }
 
-    private companion object {
-        const val REQ_PERMS = 1
-        const val REQ_CAPTURE = 2
-        const val REQ_PERMS_ONLY = 3
+    companion object {
+        const val EXTRA_RESTORE = "restore_immersive"
+        private const val REQ_PERMS = 1
+        private const val REQ_CAPTURE = 2
+        private const val REQ_PERMS_ONLY = 3
     }
 }

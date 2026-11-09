@@ -23,6 +23,22 @@
         android:text="@string/start" />
 
     <TextView
+        android:id="@+id/quit"
+        android:layout_width="wrap_content"
+        android:layout_height="40dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="4dp"
+        android:gravity="center"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:textColor="@color/label2"
+        android:textSize="15sp"
+        android:focusable="true"
+        android:clickable="true"
+        android:visibility="gone"
+        android:text="@string/quit" />
+
+    <TextView
         android:id="@+id/enable_immersive"
         android:layout_width="match_parent"
         android:layout_height="44dp"
@@ -78,7 +94,16 @@
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
             android:paddingTop="10dp"
-            android:paddingBottom="12dp" />
+            android:paddingBottom="4dp" />
+        <TextView
+            android:id="@+id/dolby_tip"
+            style="@style/T.Footnote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="12dp"
+            android:textColor="@color/accent" />
         <View style="@style/Divider" />
         <LinearLayout android:id="@+id/auto_row" style="@style/Row">
             <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">

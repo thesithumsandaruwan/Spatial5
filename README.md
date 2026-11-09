@@ -12,6 +12,8 @@ it ends up behind you. It runs in the background and works with the players you 
 | How | Captures the player's audio, mutes the original, and plays a fully re-rendered binaural version | Per-ear EQ applied in place to every app (global effect) |
 | What you get | Every sound gets its own direction, rendered with measured human-ear responses (HRTFs), correct ear-timing differences, front/back cues and a small virtual room. Surround (5.1/7.1) plays through virtual speakers | A balance and tone shift between the ears |
 | Added delay | ~10 ms of processing plus the audio buffers (head prediction makes up for it) | None |
+| Permission | Android's "share screen" prompt (audio only), **asked once**: Pause keeps it, only Turn Off or a reboot ends it | None |
+| Dolby Atmos | Turn it **off** (otherwise the sound is virtualised twice) | Keep it **on**: Dolby places the sound around you, Spatial5 moves it with your head |
 
 **Every app is covered, with no adb.**
 - **Apps that announce their audio session** (YouTube Music, Poweramp, VLC, Media3 players…)
@@ -104,6 +106,18 @@ then the scene glides back to the front.
    **Invert direction**. Use **Recenter** to set "front".
 
 Requires Android 10+ and Google Play services (for the face model).
+
+## Standard mode
+
+With no capture, only per-ear level and tone can change, so Standard is tuned to move Dolby's
+virtual speakers:
+- a saturating balance shift: ~6 dB at a 30° turn, ~8 dB at 60°, mostly by turning down the far
+  side;
+- per-ear head-shadow EQ from the spherical-head model;
+- high-frequency darkening when the scene is behind you.
+
+It can't add the interaural time difference or move individual instruments; that needs Immersive
+3D.
 
 ## The app
 
