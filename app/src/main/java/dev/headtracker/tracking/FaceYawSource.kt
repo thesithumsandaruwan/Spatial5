@@ -64,7 +64,10 @@ class FaceYawSource(
      */
     private val displayListener = object : android.hardware.display.DisplayManager.DisplayListener {
         override fun onDisplayChanged(id: Int) {
-            if (id == android.view.Display.DEFAULT_DISPLAY) analysis?.targetRotation = displayRotation()
+            // Fires constantly on adaptive-refresh screens: only touch the camera on a real rotation.
+            if (id != android.view.Display.DEFAULT_DISPLAY) return
+            val r = displayRotation(); val a = analysis ?: return
+            if (a.targetRotation != r) a.targetRotation = r
         }
         override fun onDisplayAdded(id: Int) {}
         override fun onDisplayRemoved(id: Int) {}

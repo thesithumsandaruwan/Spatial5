@@ -107,6 +107,7 @@ class ImmersiveEngine(
         track.bufferSizeInFrames = bufFrames
         var underruns = 0
         var lastCinema = false
+        var grewOnUnderrun = false
         val out = FloatArray(hop * 2)
         var input = FloatArray(hop * 2)
         val probeBuf = FloatArray(4096)
@@ -173,8 +174,8 @@ class ImmersiveEngine(
                 val cine = cinema
                 if (cine != lastCinema) {
                     lastCinema = cine
-                    if (cine) {   // lower delay for lip-sync; grows again by itself if the phone underruns
-                        bufFrames = min(bufFrames, (0.02 * sr).toInt()).coerceAtLeast(hop * 2)
+                    if (cine && !grewOnUnderrun) {   // lower delay for lip-sync, unless this phone already needed more
+                        bufFrames = min(bufFrames, (0.03 * sr).toInt()).coerceAtLeast(hop * 3)
                         track.bufferSizeInFrames = bufFrames
                     }
                 }
@@ -205,6 +206,7 @@ class ImmersiveEngine(
                     if (u > underruns && bufFrames < track.bufferCapacityInFrames) {
                         bufFrames = min(track.bufferCapacityInFrames, bufFrames + (0.02 * sr).toInt())
                         track.bufferSizeInFrames = bufFrames
+                        grewOnUnderrun = true
                         Log.i(TAG, "underrun: output buffer now ${bufFrames * 1000 / sr} ms")
                     }
                     underruns = u
@@ -280,34 +282,40 @@ class ImmersiveEngine(
     }
 
     /**
-     * Which of [candidates] (uids) is producing the audio we hear? Short test captures, halving the
-     * set each time (~6 tests for 40 apps). Returns null if none of them is audible (app not in the
-     * list, or it forbids capture). Blocking; call from a background thread.
+     * Which app (uid) is producing the audio we hear? Short test captures (~0.2 s): each group in
+     * order (e.g. last identified app, known players, everything else) as a whole, then a binary
+     * search inside the first audible group. Usually 1-4 tests. Null if no candidate is audible
+     * (app not listed, or it forbids capture). Blocking; call from a background thread.
      */
-    fun identifyUid(candidates: List<Int>): Int? {
-        if (candidates.isEmpty()) return null
+    fun identifyUid(groups: List<List<Int>>): Int? {
         val sr = AudioTrack.getNativeOutputSampleRate(AudioManager.STREAM_MUSIC).takeIf { it in 32000..96000 } ?: 48000
+        var tests = 0
         fun audible(set: List<Int>): Boolean {
+            tests++
             val rec = buildRecord(set.toSet(), sr, 256, stereoOnly = true)?.first ?: return false
             try {
                 val buf = FloatArray(2048)
-                val end = SystemClock.uptimeMillis() + 350
+                val end = SystemClock.uptimeMillis() + 220
                 while (SystemClock.uptimeMillis() < end) {
                     val n = rec.read(buf, 0, buf.size, AudioRecord.READ_NON_BLOCKING)
                     for (i in 0 until maxOf(0, n)) if (abs(buf[i]) > 1e-5f) return true
-                    SystemClock.sleep(20)
+                    SystemClock.sleep(15)
                 }
                 return false
             } finally { safeStop(rec) }
         }
-        if (!audible(candidates)) { log("identify: none of ${candidates.size} apps audible"); return null }
-        var set = candidates
-        while (set.size > 1) {
-            val half = set.subList(0, set.size / 2)
-            set = if (audible(half)) half else set.subList(set.size / 2, set.size)
+        for (g in groups) {
+            if (g.isEmpty() || !audible(g)) continue
+            var set = g
+            while (set.size > 1) {
+                val half = set.subList(0, set.size / 2)
+                set = if (audible(half)) half else set.subList(set.size / 2, set.size)
+            }
+            log("identify: uid ${set[0]} in $tests tests")
+            return set[0]
         }
-        log("identify: uid ${set[0]}")
-        return set[0]
+        log("identify: none of ${groups.sumOf { it.size }} apps audible ($tests tests)")
+        return null
     }
 
     /** Recent capture events, for diagnostics. */

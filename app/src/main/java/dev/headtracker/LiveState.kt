@@ -29,6 +29,8 @@ object LiveState {
     @Volatile var layout = LAYOUT_STANDARD
     /** Session / capture state for the diagnostics panel. */
     @Volatile var diag = ""
+    /** A session scan / app identification is running (Refresh button spinner). */
+    @Volatile var scanning = false
 
     const val LAYOUT_STANDARD = 0
     const val LAYOUT_UPMIX = 1

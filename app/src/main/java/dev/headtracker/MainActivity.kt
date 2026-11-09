@@ -83,6 +83,14 @@ class MainActivity : Activity() {
             }
         }
         findViewById<View>(R.id.quit).setOnClickListener { TrackerService.send(this, TrackerService.ACTION_STOP) }
+        findViewById<View>(R.id.refresh_audio).apply {
+            Springs.pressable(this, 0.94f)
+            setOnClickListener {
+                performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                if (LiveState.running && prefs.immersive && !LiveState.immersiveRunning) { if (ensurePermissions()) begin() }
+                else if (LiveState.running) TrackerService.send(this@MainActivity, TrackerService.ACTION_REFRESH_AUDIO)
+            }
+        }
         enableImmersive.setOnClickListener { if (ensurePermissions()) begin() }
         findViewById<View>(R.id.recenter).apply {
             Springs.pressable(this, 0.9f)
@@ -365,6 +373,18 @@ class MainActivity : Activity() {
             if (prefs.autoTune && prefs.immersive) " · Auto" else ""
 
         render.text = if (running) LiveState.render else "Head tracking is off"
+        findViewById<TextView>(R.id.refresh_audio).apply {
+            visibility = if (running && !LiveState.paused) View.VISIBLE else View.GONE
+            setText(if (LiveState.scanning) R.string.refreshing else R.string.refresh)
+        }
+        // Cinema overrides room-lock and auto-recenter: show it instead of looking switched on.
+        val cine = running && LiveState.cinema
+        for (id in intArrayOf(R.id.world, R.id.auto_recenter)) {
+            val row = findViewById<View>(id).parent as View
+            row.alpha = if (cine) 0.4f else 1f
+        }
+        ((findViewById<View>(R.id.world).parent as ViewGroup).getChildAt(0) as? ViewGroup)?.getChildAt(1)
+            ?.let { (it as TextView).setText(if (cine) R.string.world_sub_cinema else R.string.world_sub) }
         val diag = findViewById<TextView>(R.id.diag)
         if (diag.isShown) {
             if (!probeStarted) {

@@ -35,6 +35,7 @@
     <string name="caption_motion">Uses only the phone\'s motion. Keep the phone in a pocket so it turns with you.</string>
     <string name="world">Lock to Room</string>
     <string name="world_sub">Sound stays put even when the phone moves</string>
+    <string name="world_sub_cinema">Cinema is on: sound follows the screen</string>
     <string name="auto_recenter">Auto-Recenter</string>
     <string name="auto_recenter_sub">Scene slowly follows you to a new direction</string>
     <string name="smoothness">Smoothness</string>
@@ -42,6 +43,8 @@
     <string name="invert">Invert Direction</string>
     <string name="pause_screen_off">Pause Camera When Screen Is Off</string>
     <string name="diagnostics">Diagnostics</string>
+    <string name="refresh">Refresh</string>
+    <string name="refreshing">Finding…</string>
     <string name="copy">Copy</string>
     <string name="notif_channel">Head tracking</string>
     <string name="help">When Android asks to share your screen, choose \"Entire screen\": only audio is used, and nothing is recorded or leaves your phone.\n\nHRTF data: MIT Media Lab KEMAR (Gardner &amp; Martin). Head model: \"Lee Perry-Smith\" scan by Infinite Realities, CC BY 3.0.</string>

@@ -58,17 +58,39 @@
     <!-- NOW PLAYING -->
     <TextView style="@style/SectionHeader" android:text="@string/sec_playing" android:accessibilityHeading="true" />
     <LinearLayout style="@style/Card">
-        <TextView
-            android:id="@+id/render"
-            style="@style/T.Body"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:minHeight="52dp"
             android:gravity="center_vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:paddingTop="12dp"
-            android:paddingBottom="12dp" />
+            android:orientation="horizontal"
+            android:paddingEnd="12dp">
+            <TextView
+                android:id="@+id/render"
+                style="@style/T.Body"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:minHeight="52dp"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp" />
+            <TextView
+                android:id="@+id/refresh_audio"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:background="@drawable/pill_secondary"
+                android:gravity="center"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:fontFamily="sans-serif-medium"
+                android:textColor="@color/accent"
+                android:textSize="14sp"
+                android:focusable="true"
+                android:clickable="true"
+                android:text="@string/refresh" />
+        </LinearLayout>
         <LinearLayout
             android:id="@+id/apps"
             android:layout_width="match_parent"

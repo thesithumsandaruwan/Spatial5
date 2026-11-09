@@ -83,6 +83,9 @@ class TrackerService : LifecycleService() {
     @Volatile private var scanBusy = false
     private var lastFullScanMs = 0L
     private var lastQuickScanMs = 0L
+    private var lastIdentifiedUid: Int? = null
+    /** Sessions muted by fast adopt (session -> when), verified by the 3D audio continuing. */
+    private val adopted = HashMap<Int, Long>()
     private lateinit var prober: dev.headtracker.audio.SessionProber
     private val failedSessions = HashSet<Int>()
     private var captureUids: Set<Int> = emptySet()
@@ -148,6 +151,7 @@ class TrackerService : LifecycleService() {
         when (intent?.action) {
             ACTION_STOP -> { stopSelf(); return START_NOT_STICKY }
             ACTION_RECENTER -> tracker.post { engine.recenter() }
+            ACTION_REFRESH_AUDIO -> tracker.post { refreshAudio() }
             ACTION_PAUSE -> setPaused(true)
             ACTION_RESUME -> setPaused(false)
             ACTION_REFRESH -> { goForeground(withProjection = projection != null); setPaused(false) }
@@ -404,8 +408,8 @@ class TrackerService : LifecycleService() {
                     val wantGlobal = media > 0 && (!anyMuted || mainSilentFor > 3000)
                     if (wantGlobal != globalEngaged) { globalEngaged = wantGlobal; effects.setEnabled(0, wantGlobal); LiveState.sessions = describe() }
                     // Unexplained media playing: look for the player's session.
-                    if (media > 0 && (!anyMuted || mainSilentFor > 2500)) discover(now, e)
-                    else if (e.captureAll && media > 0 && now - lastQuickScanMs > 5000) discover(now, e)
+                    if (media > 0 && (!anyMuted || mainSilentFor > 1500)) discover(now, e)
+                    else if (anyMuted && media == 1 && now - e.lastSignalMs < 500) discover(now, e, adopt = true)
                 }
                 if (changed) reconcile()
             }
@@ -439,65 +443,105 @@ class TrackerService : LifecycleService() {
     }
 
     /**
-     * Scans recent audio sessions for players that didn't announce themselves. A session must be
-     * playing in two scans ~2 s apart (filters out notification / navigation blips) before it's muted.
+     * Scans recent audio sessions for players that didn't announce themselves.
+     *  - normal: a session must be playing in two scans ~0.8 s apart (filters notification blips),
+     *    then its app is identified with test captures and handled by the per-app 3D path;
+     *  - [adopt]: 3D audio is flowing and exactly one media player is active, so a new unmuted
+     *    playing session is that app's next track/video (e.g. YouTube starts a new session per
+     *    video). It's muted at once, otherwise you'd hear it twice (only one media player is active
+     *    and its audio is already being captured, so the new session can only be that app's);
+     *  - [force] (Refresh button): one immediate full scan, single pass.
      */
-    private fun discover(now: Long, e: ImmersiveEngine) {
+    private fun discover(now: Long, e: ImmersiveEngine, adopt: Boolean = false, force: Boolean = false) {
         if (scanBusy || checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return
-        val full = now - lastFullScanMs > 20_000 && pendingDiscovery.isEmpty()
-        if (!full && now - lastQuickScanMs < if (pendingDiscovery.isEmpty()) 3000 else 1800) return
+        val full = force || (!adopt && now - lastFullScanMs > 20_000 && pendingDiscovery.isEmpty())
+        if (!full && now - lastQuickScanMs < if (adopt) 2500 else if (pendingDiscovery.isEmpty()) 2000 else 900) return
         if (full) lastFullScanMs = now
         lastQuickScanMs = now
         val skip = HashSet<Int>(sessions.keys).apply { addAll(rejectedSessions); add(e.trackSession) }
         val depth = if (full) dev.headtracker.audio.SessionProber.FULL_DEPTH else dev.headtracker.audio.SessionProber.QUICK_DEPTH
         val pending = pendingDiscovery.keys.filter { it !in skip }
-        scanBusy = true
+        scanBusy = true; LiveState.scanning = true
         try {
             scanExec.execute {
                 val confirmedNow = try {
                     val found = prober.findPlaying(depth, skip)
-                    found + prober.measure(pending.filter { it !in found })
+                    if (adopt && found.size == 1) {
+                        // Still playing a moment later? (not a notification blip)
+                        SystemClock.sleep(500); prober.measure(found)
+                    } else found + prober.measure(pending.filter { it !in found })
                 } catch (_: Throwable) { emptyList() }
                 tracker.post {
-                    scanBusy = false
+                    scanBusy = false; LiveState.scanning = false
                     val t = SystemClock.uptimeMillis()
+                    val engine = immersive ?: return@post
+                    val media = mediaPlayers(engine.trackPlaying)
+                    if (adopt) {
+                        val uid = captureUids.singleOrNull()
+                        if (confirmedNow.size != 1 || uid == null || media != 1) return@post
+                        val sid = confirmedNow.first()
+                        val owner = sessions.values.firstOrNull { it.uid == uid }?.pkg ?: "uid $uid"
+                        sessions[sid] = Session(owner, uid, false, t, discovered = true)
+                        adopted[sid] = t
+                        engine.log("new session #$sid -> ${owner.substringAfterLast('.')} (adopted)")
+                        trimScanned(); reconcile()
+                        return@post
+                    }
                     pendingDiscovery.keys.retainAll(confirmedNow.toSet())
-                    val media = mediaPlayers(immersive?.trackPlaying == true)
-                    val confirmed = confirmedNow.filter { (pendingDiscovery[it] ?: t) <= t - 1500 }
+                    val confirmed = if (force) confirmedNow else confirmedNow.filter { (pendingDiscovery[it] ?: t) <= t - 800 }
                     confirmedNow.forEach { pendingDiscovery.putIfAbsent(it, t) }
                     if (confirmed.isEmpty() || media <= 0) return@post
-                    val engine = immersive ?: return@post
                     val sid = confirmed.first()
                     pendingDiscovery.remove(sid)
-                    // Which app owns it? Test captures over the installed media apps (the player is
-                    // un-muted right now, so its audio is audible to a capture of its uid).
-                    val candidates = candidateUids()
-                    scanBusy = true
-                    try {
-                        scanExec.execute {
-                            val uid = try { engine.identifyUid(candidates) } catch (_: Throwable) { null }
-                            tracker.post {
-                                scanBusy = false
-                                if (uid == null) {
-                                    rejectedSessions += sid      // app blocks capture or isn't a media app: stays Standard
-                                    engine.log("session #$sid: owner not capturable")
-                                    return@post
-                                }
-                                val pkg = (packageManager.getPackagesForUid(uid)?.firstOrNull() ?: "uid $uid")
-                                engine.log("session #$sid -> ${pkg.substringAfterLast('.')}")
-                                sessions[sid] = Session(pkg, uid, false, SystemClock.uptimeMillis(), discovered = true)
-                                prefs.addKnownPlayer(pkg)
-                                if (pkg !in prefs.blocked) mutedUids += uid
-                                // Keep the list small: oldest scanned sessions are long gone.
-                                val scanned = sessions.filter { it.value.discovered }.keys.sorted()
-                                scanned.dropLast(6).forEach { sessions.remove(it) }
-                                reconcile()
-                            }
-                        }
-                    } catch (_: Throwable) { scanBusy = false }
+                    identify(sid, engine)
                 }
             }
-        } catch (_: Throwable) { scanBusy = false }
+        } catch (_: Throwable) { scanBusy = false; LiveState.scanning = false }
+    }
+
+    /** Which app owns [sid]? Test captures: last identified app, then known players, then all media apps. */
+    private fun identify(sid: Int, engine: ImmersiveEngine) {
+        val all = candidateUids()
+        val known = prefs.knownPlayers.mapNotNull { uidOf(it).takeIf { u -> u >= 10000 } }.toSet()
+        val groups = listOf(listOfNotNull(lastIdentifiedUid?.takeIf { it in all }), all.filter { it in known && it != lastIdentifiedUid },
+            all.filter { it !in known && it != lastIdentifiedUid }).filter { it.isNotEmpty() }
+        scanBusy = true; LiveState.scanning = true
+        try {
+            scanExec.execute {
+                val uid = try { engine.identifyUid(groups) } catch (_: Throwable) { null }
+                tracker.post {
+                    scanBusy = false; LiveState.scanning = false
+                    if (uid == null) {
+                        rejectedSessions += sid      // app blocks capture or isn't a media app: stays Standard
+                        engine.log("session #$sid: owner not capturable")
+                        return@post
+                    }
+                    lastIdentifiedUid = uid
+                    val pkg = packageManager.getPackagesForUid(uid)?.firstOrNull() ?: "uid $uid"
+                    engine.log("session #$sid -> ${pkg.substringAfterLast('.')}")
+                    sessions[sid] = Session(pkg, uid, false, SystemClock.uptimeMillis(), discovered = true)
+                    prefs.addKnownPlayer(pkg)
+                    if (pkg !in prefs.blocked) mutedUids += uid
+                    trimScanned(); reconcile()
+                }
+            }
+        } catch (_: Throwable) { scanBusy = false; LiveState.scanning = false }
+    }
+
+    /** Keep the list small: the oldest scanned sessions are long gone. */
+    private fun trimScanned() {
+        sessions.filter { it.value.discovered }.keys.sorted().dropLast(6).forEach { sessions.remove(it); adopted.remove(it) }
+    }
+
+    /** Refresh button: forget rejections, retry every known app in 3D and rescan right away. */
+    private fun refreshAudio() {
+        rejectedSessions.clear(); pendingDiscovery.clear(); adopted.clear()
+        prefs.clearBlocked()
+        if (prefs.immersive) sessions.values.forEach { if (it.uid > 0) mutedUids += it.uid }
+        reconcile()
+        val e = immersive ?: return
+        lastQuickScanMs = 0; lastFullScanMs = 0
+        discover(SystemClock.uptimeMillis(), e, force = true)
     }
 
     private fun renderDescription(): String {
@@ -747,6 +791,7 @@ class TrackerService : LifecycleService() {
         const val ACTION_STOP = "dev.headtracker.STOP"
         const val ACTION_RECENTER = "dev.headtracker.RECENTER"
         const val ACTION_PAUSE = "dev.headtracker.PAUSE"
+        const val ACTION_REFRESH_AUDIO = "dev.headtracker.REFRESH_AUDIO"
         const val ACTION_RESUME = "dev.headtracker.RESUME"
         const val ACTION_REFRESH = "dev.headtracker.REFRESH"
         const val ACTION_PROJECTION = "dev.headtracker.PROJECTION"

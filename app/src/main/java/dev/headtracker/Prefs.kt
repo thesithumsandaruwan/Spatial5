@@ -65,6 +65,8 @@ class Prefs(context: Context) {
     val knownPlayers: Set<String> get() = sp.getStringSet(K_PLAYERS, emptySet()) ?: emptySet()
     fun addKnownPlayer(pkg: String) { if (pkg.isNotEmpty() && pkg !in knownPlayers) sp.edit().putStringSet(K_PLAYERS, knownPlayers + pkg).apply() }
 
+    fun clearBlocked() { sp.edit().remove(K_BLOCKED).apply() }
+
     fun removeBlocked(pkgs: Set<String>) { if (pkgs.any { it in blocked }) sp.edit().putStringSet(K_BLOCKED, blocked - pkgs).apply() }
 
     companion object {
