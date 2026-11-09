@@ -1,6 +1,5 @@
 package dev.headtracker
 
-import dev.headtracker.audio.DumpSessionScanner
 import dev.headtracker.dsp.BinauralRenderer
 import dev.headtracker.dsp.Fft
 import dev.headtracker.dsp.Hrtf
@@ -173,13 +172,4 @@ class RendererTest {
         assertEquals(30.0, y, 2.0)
     }
 
-    @Test fun parsesDumpsysPlayers() {
-        val text = """
-  ID:15 -- type:android.media.AudioTrack -- u/pid:10172/12345 -- state:started -- attr:AudioAttributes: usage=USAGE_MEDIA content=CONTENT_TYPE_MUSIC flags=0x800 tags= bundle=null -- session:2345
-  ID:16 -- type:android.media.SoundPool -- u/pid:1000/1863 -- state:idle -- attr:AudioAttributes: usage=USAGE_ASSISTANCE_SONIFICATION content=CONTENT_TYPE_SONIFICATION flags=0x800 tags= bundle=null -- session:0
-  AudioPlaybackConfiguration piid:31 deviceId:0 type:android.media.AudioTrack u/pid:10201/999 state:paused attr:AudioAttributes: usage=USAGE_GAME content=CONTENT_TYPE_UNKNOWN sessionId:777
-"""
-        val found = DumpSessionScanner.parse(text, ownUid = 10500)
-        assertEquals(listOf(DumpSessionScanner.Found(10172, 2345), DumpSessionScanner.Found(10201, 777)), found)
-    }
 }

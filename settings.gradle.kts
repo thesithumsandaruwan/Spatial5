@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "HeadTracker"
+rootProject.name = "Spatial5"
 include(":app")

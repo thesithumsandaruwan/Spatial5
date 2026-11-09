@@ -5,7 +5,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-// Stable release key (signing/keystore.properties). Falls back to the debug key if it's missing.
+// Release key from signing/keystore.properties (git-ignored; CI writes it from secrets).
+// Without it, release builds are signed with the local debug key.
 val signingProps = Properties().apply {
     val f = rootProject.file("signing/keystore.properties")
     if (f.exists()) f.inputStream().use { load(it) }
@@ -19,8 +20,9 @@ android {
         applicationId = "dev.headtracker"
         minSdk = 29          // playback capture (immersive mode) needs Android 10
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        // Release builds pass these from the git tag (see .github/workflows/release.yml).
+        versionCode = (findProperty("appVersionCode") as String?)?.toInt() ?: 2
+        versionName = (findProperty("appVersionName") as String?) ?: "1.1"
     }
 
     signingConfigs {

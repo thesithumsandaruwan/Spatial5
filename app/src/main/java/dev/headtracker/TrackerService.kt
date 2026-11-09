@@ -33,7 +33,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import androidx.core.os.HandlerCompat
 import androidx.lifecycle.LifecycleService
-import dev.headtracker.audio.DumpSessionScanner
 import dev.headtracker.audio.ImmersiveEngine
 import dev.headtracker.audio.SpatialEffectManager
 import dev.headtracker.audio.SpatialEffectManager.Mode
@@ -66,7 +65,6 @@ class TrackerService : LifecycleService() {
     private val effects = SpatialEffectManager()
     private lateinit var face: FaceYawSource
     private lateinit var motion: PhoneMotionSource
-    private lateinit var scanner: DumpSessionScanner
     private val scanExec = Executors.newSingleThreadExecutor { Thread(it, "scan") }
 
     // Tracker-thread state.
@@ -118,7 +116,6 @@ class TrackerService : LifecycleService() {
             if (yaw != null) engine.onFace(yaw, now()) else engine.onFaceMissing()
         }
         motion = PhoneMotionSource(this, tracker) { engine.onPhoneYaw(it) }
-        scanner = DumpSessionScanner(this)
         prober = dev.headtracker.audio.SessionProber(audio)
         screenOn = getSystemService(PowerManager::class.java).isInteractive
         headphones = headphonesConnected()
@@ -142,8 +139,6 @@ class TrackerService : LifecycleService() {
         LiveState.running = true
         main.post(heartbeat)
         tracker.post(watchdog)
-        LiveState.dumpAvailable = scanner.available
-        requestScan()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -568,25 +563,6 @@ class TrackerService : LifecycleService() {
         reconcile()
     }
 
-    private fun requestScan() {
-        if (!scanner.available) return
-        try {
-            scanExec.execute {
-                val found = scanner.scan() ?: return@execute
-                tracker.post {
-                    val now = SystemClock.uptimeMillis()
-                    for (f in found) {
-                        val pkg = packageManager.getNameForUid(f.uid) ?: "uid ${f.uid}"
-                        addSession(f.session, pkg.substringBefore(':'), f.uid, true)
-                    }
-                    val ids = found.map { it.session }.toSet()
-                    val stale = sessions.filter { (id, s) -> s.fromDump && id !in ids && now - s.seen > 5000 }.keys
-                    if (stale.isNotEmpty()) { stale.forEach { sessions.remove(it); failedSessions.remove(it) }; reconcile() }
-                }
-            }
-        } catch (_: Throwable) {}
-    }
-
     private fun uidOf(pkg: String): Int = try {
         packageManager.getPackageUid(pkg, 0)
     } catch (_: Throwable) { -1 }
@@ -717,7 +693,6 @@ class TrackerService : LifecycleService() {
 
     private val playbackCallback = object : AudioManager.AudioPlaybackCallback() {
         override fun onPlaybackConfigChanged(configs: MutableList<AudioPlaybackConfiguration>) {
-            requestScan()               // a player just started/stopped: find & mute it right away
             evaluate()
         }
     }

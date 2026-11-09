@@ -147,7 +147,9 @@ class HeadSceneView @JvmOverloads constructor(context: Context, attrs: Attribute
                 draw(sphere, body, if (active) 0.35f + 0.9f * s.level else 0.12f, glow)
             }
             if (active) {
-                glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE); glDepthMask(false)
+                // Additive glow reads as light on a dark background; on a light one it just washes
+                // out to white, so blend normally there.
+                glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, if (dark) GL_ONE else GL_ONE_MINUS_SRC_ALPHA); glDepthMask(false)
                 for (s in speakers) {
                     val a = Math.toRadians(s.azimuth.toDouble())
                     val x = (sin(a) * RING).toFloat(); val z = (cos(a) * RING).toFloat()
@@ -158,7 +160,8 @@ class HeadSceneView @JvmOverloads constructor(context: Context, attrs: Attribute
                     Matrix.rotateM(model, 0, -Math.toDegrees(kotlin.math.atan2(eye[1].toDouble(), kotlin.math.hypot((eye[0] - x).toDouble(), (eye[2] - z).toDouble()))).toFloat(), 1f, 0f, 0f)
                     val r = (if (s.ambient) 0.32f else 0.42f) * (0.7f + 0.8f * s.level)
                     Matrix.scaleM(model, 0, r, r, r)
-                    val c = if (s.ambient) floatArrayOf(0.39f, 0.82f, 1f, 0.22f + 0.4f * s.level) else floatArrayOf(0.1f, 0.55f, 1f, 0.25f + 0.5f * s.level)
+                    val k = if (dark) 1f else 0.45f
+                    val c = if (s.ambient) floatArrayOf(0.39f, 0.82f, 1f, (0.22f + 0.4f * s.level) * k) else floatArrayOf(0.1f, 0.55f, 1f, (0.25f + 0.5f * s.level) * k)
                     flat(halo, 34, GL_TRIANGLE_FAN, c)
                 }
                 glDepthMask(true); glDisable(GL_BLEND)

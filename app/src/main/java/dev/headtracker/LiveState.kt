@@ -20,7 +20,6 @@ object LiveState {
     @Volatile var cinema = false
     /** Android ended the capture permission on its own (not the user): offer a one-tap restore. */
     @Volatile var immersiveLost = false
-    @Volatile var dumpAvailable = false
     /** Stage half-width (deg) and room amount actually in use. */
     @Volatile var width = 40f
     @Volatile var room = 0.2f
