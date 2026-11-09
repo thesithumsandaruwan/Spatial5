@@ -61,6 +61,10 @@ class Prefs(context: Context) {
     val verified: Set<String> get() = sp.getStringSet(K_VERIFIED, emptySet()) ?: emptySet()
     fun addVerified(pkgs: Set<String>) { val n = pkgs - verified; if (n.isNotEmpty()) sp.edit().putStringSet(K_VERIFIED, verified + n).apply() }
 
+    /** Every app that has announced an audio session: first candidates when identifying a scanned player. */
+    val knownPlayers: Set<String> get() = sp.getStringSet(K_PLAYERS, emptySet()) ?: emptySet()
+    fun addKnownPlayer(pkg: String) { if (pkg.isNotEmpty() && pkg !in knownPlayers) sp.edit().putStringSet(K_PLAYERS, knownPlayers + pkg).apply() }
+
     fun removeBlocked(pkgs: Set<String>) { if (pkgs.any { it in blocked }) sp.edit().putStringSet(K_BLOCKED, blocked - pkgs).apply() }
 
     companion object {
@@ -72,6 +76,7 @@ class Prefs(context: Context) {
         const val MOVIE_OFF = 2
         const val K_BLOCKED = "blocked_pkgs"
         const val K_VERIFIED = "verified_pkgs"
+        const val K_PLAYERS = "known_players"
         const val K_WORLD = "world_anchor"
         const val K_WIDTH = "width"
         const val K_ROOM = "room"

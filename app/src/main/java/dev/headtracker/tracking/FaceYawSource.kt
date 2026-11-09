@@ -172,13 +172,15 @@ class FaceYawSource(
         val luma = lowLight.meanLuma(plane.buffer, plane.rowStride, w, h)
         brightness = luma
         adjustExposure(luma)
-        // Dark frame, or the detector keeps missing: feed a contrast-stretched grey image instead.
-        val enhance = luma < LowLight.DARK || misses >= 3
-        lowLightActive = enhance
+        // Dark frame: always feed a contrast-stretched, gamma-lifted grey image. In good light only
+        // every other frame is stretched while the detector keeps missing (never stuck on enhanced).
+        val dark = luma < LowLight.DARK
+        val enhance = dark || (misses >= 3 && frameNo % 2 == 1)
+        lowLightActive = dark
         // Still missing: alternate in the slower, more robust model until the face is found again.
         val det = if (misses >= 6 && frameNo % 2 == 0) slow else fast
         val image = if (enhance) {
-            val nv21 = lowLight.enhance(plane.buffer, plane.rowStride, w, h)
+            val nv21 = lowLight.enhance(plane.buffer, plane.rowStride, w, h, if (dark) 0.65 else 1.0)
             proxy.close()
             InputImage.fromByteArray(nv21, w, h, rot, InputImage.IMAGE_FORMAT_NV21)
         } else InputImage.fromMediaImage(media, rot)

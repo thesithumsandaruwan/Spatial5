@@ -18,13 +18,14 @@ it ends up behind you. It runs in the background and works with the players you 
 **Every app is covered, with no adb.**
 - **Apps that announce their audio session** (YouTube Music, Poweramp, VLC, Media3 players…)
   get Immersive 3D straight away.
-- **Players that don't announce their session** are found by a scan: Android hands out session
-  IDs from one increasing counter, so the app attaches a passive Visualizer to the most recent
-  ones to see which is playing.
-  - A session must be playing in two scans about 2 s apart, and the scan only runs while an
-    unexplained *media* player is active, so navigation voice and notifications are ignored.
-  - The player is then muted and re-rendered in 3D, with "capture all media" excluding every
-    known app that isn't muted, so nothing is heard twice.
+- **Players that don't announce their session**, or that started before Spatial5, are found by a
+  scan. Android hands out session IDs from one increasing counter, so a passive Visualizer on the
+  most recent ones shows which is playing. A session must be playing in two scans about 2 s
+  apart, and the scan only runs while an unexplained *media* player is active.
+  - The **owning app is then identified** with short test captures over the installed media apps
+    (players seen before first), halving the set each time (~6 tests for 40 apps).
+  - Then it goes through the normal per-app 3D path. Advanced → Diagnostics → *events* shows each
+    step.
 - **Apps that block capture** are un-muted within ~1.5 s, switched to Standard (the global
   effect) and remembered.
 - **Apps that produced 3D audio once** are remembered as verified, so a quiet gap between songs

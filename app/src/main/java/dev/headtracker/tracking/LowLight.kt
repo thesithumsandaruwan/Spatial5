@@ -30,7 +30,7 @@ class LowLight {
      * Returns an NV21 buffer of [w] x [h]: luma stretched from its 1st..99th percentile to full range
      * with a gamma lift, chroma neutral. The buffer is reused: don't hold on to it across frames.
      */
-    fun enhance(y: ByteBuffer, rowStride: Int, w: Int, h: Int): ByteArray {
+    fun enhance(y: ByteBuffer, rowStride: Int, w: Int, h: Int, gamma: Double = GAMMA): ByteArray {
         val size = w * h
         if (nv21.size != size * 3 / 2) {
             nv21 = ByteArray(size * 3 / 2)
@@ -49,7 +49,7 @@ class LowLight {
         val span = (hi - lo).toFloat()
         for (v in 0 until 256) {
             val t = ((v - lo) / span).coerceIn(0f, 1f)
-            lut[v] = (255f * t.toDouble().pow(GAMMA).toFloat()).toInt().coerceIn(0, 255).toByte()
+            lut[v] = (255f * t.toDouble().pow(gamma).toFloat()).toInt().coerceIn(0, 255).toByte()
         }
         for (r in 0 until h) {
             val src = r * rowStride; val dst = r * w

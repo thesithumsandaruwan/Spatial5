@@ -299,11 +299,11 @@ class TrackerService : LifecycleService() {
 
     private fun describe(): String {
         val lines = sessions.entries.map { (id, s) ->
-            val name = if (s.discovered) "Other player" else appLabel(s.pkg)
+            val name = if (s.discovered && s.uid <= 0) "Other player" else appLabel(s.pkg)
             when {
                 id in failedSessions -> "$name\tUnavailable"
                 effects.modeOf(id) == Mode.MUTE -> "$name\t3D"
-                s.discovered -> ""
+                s.discovered && s.uid <= 0 -> ""
                 else -> "$name\tStandard"
             }
         }.filter { it.isNotEmpty() }.distinct().toMutableList()
@@ -315,6 +315,28 @@ class TrackerService : LifecycleService() {
     private fun appLabel(pkg: String): String = labels.getOrPut(pkg) {
         try { packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString() }
         catch (_: Throwable) { pkg.substringAfterLast('.').replaceFirstChar { it.uppercase() } }
+    }
+
+    /**
+     * Apps that could be playing media: players that announced sessions before, then every installed
+     * app with a media-button receiver, media browser service, or audio/video viewer.
+     */
+    private fun candidateUids(): List<Int> {
+        val pm = packageManager
+        val pkgs = LinkedHashSet<String>()
+        pkgs += prefs.knownPlayers
+        pkgs += prefs.verified
+        fun add(list: List<android.content.pm.ResolveInfo>) = list.forEach { r ->
+            (r.activityInfo?.packageName ?: r.serviceInfo?.packageName)?.let { pkgs += it }
+        }
+        try {
+            add(pm.queryBroadcastReceivers(Intent(Intent.ACTION_MEDIA_BUTTON), 0))
+            add(pm.queryIntentServices(Intent("android.media.browse.MediaBrowserService"), 0))
+            for (type in listOf("audio/*", "video/*")) add(pm.queryIntentActivities(
+                Intent(Intent.ACTION_VIEW).setDataAndType(android.net.Uri.parse("content://x/y"), type), 0))
+        } catch (_: Throwable) {}
+        val me = Process.myUid()
+        return pkgs.mapNotNull { uidOf(it).takeIf { u -> u >= 10000 && u != me } }.distinct()
     }
 
     private fun mediaPlayers(ownPlaying: Boolean): Int =
@@ -402,6 +424,7 @@ class TrackerService : LifecycleService() {
                 append("\ncamera: brightness ").append(LiveState.cameraLuma).append("/255")
                     .append(if (LiveState.lowLight) " · low-light boost on" else "").append(" · ").append("%.0f".format(LiveState.fps)).append(" fps")
                 append("\nlast scan: ").append(prober.lastReport)
+                append("\nevents: ").append(e?.eventLog?.ifEmpty { "none" } ?: "none")
             }
             LiveState.width = e?.effectiveWidth ?: prefs.stageHalfWidthDeg
             LiveState.room = e?.effectiveRoom ?: (prefs.room / 100f)
@@ -443,15 +466,35 @@ class TrackerService : LifecycleService() {
                     val confirmed = confirmedNow.filter { (pendingDiscovery[it] ?: t) <= t - 1500 }
                     confirmedNow.forEach { pendingDiscovery.putIfAbsent(it, t) }
                     if (confirmed.isEmpty() || media <= 0) return@post
-                    for (sid in confirmed.take(media.coerceAtLeast(1))) {
-                        pendingDiscovery.remove(sid)
-                        sessions[sid] = Session("", -1, false, t, discovered = true)
-                        mutedDiscovered += sid
-                        Log.i(TAG, "discovered player session $sid -> 3D")
-                    }
-                    // Keep the list small: oldest discovered sessions are long gone.
-                    while (mutedDiscovered.size > 6) { val old = mutedDiscovered.first(); mutedDiscovered.remove(old); sessions.remove(old) }
-                    reconcile()
+                    val engine = immersive ?: return@post
+                    val sid = confirmed.first()
+                    pendingDiscovery.remove(sid)
+                    // Which app owns it? Test captures over the installed media apps (the player is
+                    // un-muted right now, so its audio is audible to a capture of its uid).
+                    val candidates = candidateUids()
+                    scanBusy = true
+                    try {
+                        scanExec.execute {
+                            val uid = try { engine.identifyUid(candidates) } catch (_: Throwable) { null }
+                            tracker.post {
+                                scanBusy = false
+                                if (uid == null) {
+                                    rejectedSessions += sid      // app blocks capture or isn't a media app: stays Standard
+                                    engine.log("session #$sid: owner not capturable")
+                                    return@post
+                                }
+                                val pkg = (packageManager.getPackagesForUid(uid)?.firstOrNull() ?: "uid $uid")
+                                engine.log("session #$sid -> ${pkg.substringAfterLast('.')}")
+                                sessions[sid] = Session(pkg, uid, false, SystemClock.uptimeMillis(), discovered = true)
+                                prefs.addKnownPlayer(pkg)
+                                if (pkg !in prefs.blocked) mutedUids += uid
+                                // Keep the list small: oldest scanned sessions are long gone.
+                                val scanned = sessions.filter { it.value.discovered }.keys.sorted()
+                                scanned.dropLast(6).forEach { sessions.remove(it) }
+                                reconcile()
+                            }
+                        }
+                    } catch (_: Throwable) { scanBusy = false }
                 }
             }
         } catch (_: Throwable) { scanBusy = false }
@@ -615,7 +658,7 @@ class TrackerService : LifecycleService() {
             val open = intent.action == AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION
             val uid = uidOf(pkg)
             tracker.post {
-                if (open) addSession(id, pkg, uid, false)
+                if (open) { addSession(id, pkg, uid, false); if (uid > 0) prefs.addKnownPlayer(pkg) }
                 else if (sessions.remove(id) != null) { failedSessions.remove(id); reconcile() }
             }
         }

@@ -269,13 +269,53 @@ class ImmersiveEngine(
                 if (rec.state != AudioRecord.STATE_INITIALIZED || rec.channelCount != ch) { rec.release(); continue }
                 rec.startRecording()
                 if (rec.recordingState != AudioRecord.RECORDSTATE_RECORDING) { rec.release(); continue }
-                Log.i(TAG, "capturing $ch ch @ $sr Hz from uids $set")
+                log(if (set.isEmpty()) "capture $ch ch: all media" else "capture $ch ch: uids $set")
                 return rec to ch
             } catch (t: Throwable) {
                 Log.i(TAG, "$ch-channel capture unavailable: $t")
+                if (ch == 2) log("capture failed: ${t.javaClass.simpleName} ${t.message?.take(50) ?: ""}")
             }
         }
         return null
+    }
+
+    /**
+     * Which of [candidates] (uids) is producing the audio we hear? Short test captures, halving the
+     * set each time (~6 tests for 40 apps). Returns null if none of them is audible (app not in the
+     * list, or it forbids capture). Blocking; call from a background thread.
+     */
+    fun identifyUid(candidates: List<Int>): Int? {
+        if (candidates.isEmpty()) return null
+        val sr = AudioTrack.getNativeOutputSampleRate(AudioManager.STREAM_MUSIC).takeIf { it in 32000..96000 } ?: 48000
+        fun audible(set: List<Int>): Boolean {
+            val rec = buildRecord(set.toSet(), sr, 256, stereoOnly = true)?.first ?: return false
+            try {
+                val buf = FloatArray(2048)
+                val end = SystemClock.uptimeMillis() + 350
+                while (SystemClock.uptimeMillis() < end) {
+                    val n = rec.read(buf, 0, buf.size, AudioRecord.READ_NON_BLOCKING)
+                    for (i in 0 until maxOf(0, n)) if (abs(buf[i]) > 1e-5f) return true
+                    SystemClock.sleep(20)
+                }
+                return false
+            } finally { safeStop(rec) }
+        }
+        if (!audible(candidates)) { log("identify: none of ${candidates.size} apps audible"); return null }
+        var set = candidates
+        while (set.size > 1) {
+            val half = set.subList(0, set.size / 2)
+            set = if (audible(half)) half else set.subList(set.size / 2, set.size)
+        }
+        log("identify: uid ${set[0]}")
+        return set[0]
+    }
+
+    /** Recent capture events, for diagnostics. */
+    private val events = ArrayDeque<String>()
+    val eventLog: String get() = synchronized(events) { events.joinToString(" | ") }
+    fun log(msg: String) = synchronized(events) {
+        events.addLast(msg); while (events.size > 6) events.removeFirst()
+        Log.i(TAG, msg)
     }
 
     private fun safeStop(r: AudioRecord) {
