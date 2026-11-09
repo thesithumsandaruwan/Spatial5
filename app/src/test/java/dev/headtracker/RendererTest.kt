@@ -91,6 +91,35 @@ class RendererTest {
         assertTrue("left source: ILD $ild0 -> $ild1 dB should grow when it moves to the side", ild1 > ild0 + 1)
     }
 
+    @Test fun cinemaPinsDialogueToTheScreen() {
+        // A voice mixed slightly left of centre (as in many film mixes).
+        val voice: (Int, Int) -> Float = { i, c -> noise[i] * (if (c == 0) 1.0f else 0.8f) }
+        fun ild(lock: Float): Double {
+            val r = BinauralRenderer(sr, hrtf).apply { roomAmount = 0f; dialogueLock = lock; stageHalfWidth = 45f }
+            val hop = r.hop; val inp = FloatArray(hop * 2); val out = FloatArray(hop * 2)
+            val l = ArrayList<Float>(); val rr = ArrayList<Float>()
+            for (b in 0 until (1.5 * sr / hop).toInt()) {
+                for (i in 0 until hop) { inp[2 * i] = voice(b * hop + i, 0); inp[2 * i + 1] = voice(b * hop + i, 1) }
+                r.process(inp, 2, 0f, out)
+                for (i in 0 until hop) { l += out[2 * i]; rr += out[2 * i + 1] }
+            }
+            return db(rms(l.toFloatArray()), rms(rr.toFloatArray()))
+        }
+        val free = ild(0f); val locked = ild(1f)
+        println("voice slightly left: ILD free ${"%.1f".format(free)} dB, cinema ${"%.1f".format(locked)} dB")
+        assertTrue(abs(locked) < 0.6 && abs(free) > abs(locked) + 0.5)
+    }
+
+    @Test fun screenAnchoredTakesFrontFromFirstFace() {
+        // Landscape: the front camera is at the side, so a user looking at the screen reads as ~12 deg.
+        val e = HeadPoseEngine().apply { worldAnchor = false; autoRecenter = false }
+        var t = 0.0; var y = 0.0
+        repeat(40) { e.onFace(12.0, t); y = e.tick(t); t += 1 / 24.0 }
+        assertEquals(0.0, y, 1.0)
+        repeat(40) { e.onFace(42.0, t); y = e.tick(t); t += 1 / 24.0 }   // then turns 30 deg left
+        assertEquals(30.0, y, 3.0)
+    }
+
     @Test fun levelIsComparableToInput() {
         val (l, r) = render(2, 1.5, 0f, room = 0.35f) { i, c -> noise[(i + c * 7919) % noise.size] }
         val outDb = 20 * log10((rms(l) + rms(r)) / 2); val inDb = 20 * log10(0.1)

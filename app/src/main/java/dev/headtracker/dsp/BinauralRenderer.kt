@@ -40,6 +40,8 @@ class BinauralRenderer(private val sampleRate: Int, private val hrtf: Hrtf, val 
     @Volatile var ambienceAzimuth = 110f
     /** 0..1 how strongly ambience is pulled out of the front stage. */
     @Volatile var separation = 0.8f
+    /** 0..1: near-centre content (dialogue) is pinned exactly to the screen / stage centre. */
+    @Volatile var dialogueLock = 0f
     @Volatile var roomAmount = 0.2f
         set(v) { field = v; room.amount = v }
 
@@ -217,6 +219,7 @@ class BinauralRenderer(private val sampleRate: Int, private val hrtf: Hrtf, val 
         }
         val width = stageHalfWidth
         val sep = separation
+        val dz = 0.2f * dialogueLock
         val ambLAz = ambienceAzimuth - yaw; val ambRAz = -ambienceAzimuth - yaw
         val dGain = gain * 0.7071f
         val aGain = gain * 0.7071f
@@ -231,7 +234,9 @@ class BinauralRenderer(private val sampleRate: Int, private val hrtf: Hrtf, val 
             val dk = sqrt(1f - amb) * dGain
             val dr = dk * (gl * lr[k] + gr * rr[k]); val di = dk * (gl * li[k] + gr * ri[k])
             val pan = atan2(gr, gl) / (PI.toFloat() / 4f)          // 0..2, 1 = centre
-            val az = (1f - pan) * width - yaw
+            var p = 1f - pan                                          // -1..1, + = left
+            if (dz > 0f) { val a = abs(p); p = if (a <= dz) 0f else (if (p > 0) 1f else -1f) * (a - dz) / (1f - dz) }
+            val az = p * width - yaw
             val am = sqrt(amb) * aGain
             val alr = am * lr[k]; val ali = am * li[k]; val arr = am * rr[k]; val ari = am * ri[k]
             for (e in 0..1) {

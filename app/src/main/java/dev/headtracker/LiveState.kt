@@ -13,6 +13,8 @@ object LiveState {
     @Volatile var render = ""
     @Volatile var immersiveRunning = false
     @Volatile var paused = false
+    /** Cinema (movie) profile active. */
+    @Volatile var cinema = false
     /** Android ended the capture permission on its own (not the user): offer a one-tap restore. */
     @Volatile var immersiveLost = false
     @Volatile var dumpAvailable = false

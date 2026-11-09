@@ -49,6 +49,11 @@ class ImmersiveEngine(
     @Volatile var uidsSetMs = 0L; private set
 
     @Volatile var autoTune = true
+    /**
+     * Cinema profile (movies): screen-wide front stage, dialogue pinned to the screen, effects wider
+     * and further back, dry room (films carry their own acoustics), smallest safe output buffer.
+     */
+    @Volatile var cinema = false
     @Volatile var stageHalfWidth = 40f
     @Volatile var roomAmount = 0.2f
     /** What is actually in use (auto or manual), for the UI. */
@@ -101,6 +106,7 @@ class ImmersiveEngine(
         var bufFrames = min(track.bufferCapacityInFrames, (0.04 * sr).toInt())
         track.bufferSizeInFrames = bufFrames
         var underruns = 0
+        var lastCinema = false
         val out = FloatArray(hop * 2)
         var input = FloatArray(hop * 2)
         val probeBuf = FloatArray(4096)
@@ -164,7 +170,22 @@ class ImmersiveEngine(
                 }
                 if (!trackPlaying) { track.play(); trackPlaying = true }
 
-                if (autoTune) {
+                val cine = cinema
+                if (cine != lastCinema) {
+                    lastCinema = cine
+                    if (cine) {   // lower delay for lip-sync; grows again by itself if the phone underruns
+                        bufFrames = min(bufFrames, (0.02 * sr).toInt()).coerceAtLeast(hop * 2)
+                        track.bufferSizeInFrames = bufFrames
+                    }
+                }
+                val g = 0.004f                                   // ~0.7 s glide: profile changes never jump
+                renderer.ambienceAzimuth += ((if (cine) 120f else 110f) - renderer.ambienceAzimuth) * g
+                renderer.separation += ((if (cine) 0.95f else 0.8f) - renderer.separation) * g
+                renderer.dialogueLock += ((if (cine) 1f else 0f) - renderer.dialogueLock) * g
+                if (cine) {
+                    renderer.stageHalfWidth += (45f - renderer.stageHalfWidth) * g
+                    renderer.roomAmount += (0.08f - renderer.roomAmount) * g
+                } else if (autoTune) {
                     renderer.stageHalfWidth += (renderer.autoWidth - renderer.stageHalfWidth) * 0.002f
                     renderer.roomAmount += (renderer.autoRoom - renderer.roomAmount) * 0.002f
                 } else {

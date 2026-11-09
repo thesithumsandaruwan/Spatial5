@@ -44,6 +44,11 @@ class Prefs(context: Context) {
 
     val stageHalfWidthDeg get() = 20f + width * 0.5f
 
+    /** Movie (Cinema) profile: Auto = whenever the screen is in landscape. */
+    var movieMode: Int
+        get() = sp.getInt(K_MOVIE, MOVIE_AUTO)
+        set(v) = sp.edit().putInt(K_MOVIE, v).apply()
+
     /** Finds the best stage width and room for each song automatically. */
     var autoTune: Boolean
         get() = sp.getBoolean(K_AUTO, true)
@@ -61,6 +66,10 @@ class Prefs(context: Context) {
     companion object {
         const val K_IMMERSIVE = "immersive"
         const val K_AUTO = "auto_tune"
+        const val K_MOVIE = "movie_mode"
+        const val MOVIE_AUTO = 0
+        const val MOVIE_ON = 1
+        const val MOVIE_OFF = 2
         const val K_BLOCKED = "blocked_pkgs"
         const val K_VERIFIED = "verified_pkgs"
         const val K_WORLD = "world_anchor"

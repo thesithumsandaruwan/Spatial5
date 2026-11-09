@@ -22,7 +22,7 @@ class HeadPoseEngine {
     var invert = false
     var autoRecenter = true
     var worldAnchor = true
-        set(value) { if (field != value) { field = value; worldRefValid = false } }
+        set(value) { if (field != value) { field = value; worldRefValid = false; centerValid = false } }
     /** 0 = most responsive, 1 = smoothest. */
     var smoothness = 0.5
         set(value) {
@@ -37,6 +37,8 @@ class HeadPoseEngine {
     private var faceTime = NONE
     private var phoneYawAtFace = 0.0
     private var centerOffset = 0.0
+    /** Screen-anchored mode: "front" is taken from the first face seen (camera may be off-axis, e.g. landscape). */
+    private var centerValid = false
 
     private var phoneYaw = 0.0
     private var havePhone = false
@@ -70,9 +72,12 @@ class HeadPoseEngine {
         phoneYaw = yawDeg
     }
 
+    /** Re-learn "front" from the next face/pose (e.g. the phone was turned to landscape). */
+    fun resetFront() { worldRefValid = false; centerValid = false }
+
     fun recenter() {
         when (mode) {
-            Mode.FACE -> if (worldAnchor) { worldRef = lastHeadWorld; worldRefValid = true } else centerOffset = faceYaw
+            Mode.FACE -> if (worldAnchor) { worldRef = lastHeadWorld; worldRefValid = true } else { centerOffset = faceYaw; centerValid = true }
             Mode.MOTION -> motionRef = phoneYaw
         }
     }
@@ -117,6 +122,7 @@ class HeadPoseEngine {
             }
             return rel
         }
+        if (!centerValid && faceVisible) { centerOffset = faceYaw; centerValid = true }
         val rel = faceYaw - centerOffset
         // Glanced away beyond the detector's range? Hold the last pose longer before giving up.
         val hold = if (abs(rel) > 25) 2.5 else 0.4
@@ -139,7 +145,7 @@ class HeadPoseEngine {
 
     private fun resetState() {
         faceFilter.reset(); faceTime = NONE; faceVisible = false
-        motionRef = phoneYaw; centerOffset = 0.0; worldRefValid = false
+        motionRef = phoneYaw; centerOffset = 0.0; worldRefValid = false; centerValid = false
     }
 
     companion object {

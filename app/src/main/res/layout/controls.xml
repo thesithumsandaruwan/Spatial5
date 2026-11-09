@@ -130,6 +130,27 @@
         </LinearLayout>
     </LinearLayout>
 
+    <!-- MOVIES -->
+    <TextView style="@style/SectionHeader" android:text="@string/sec_movies" android:accessibilityHeading="true" />
+    <LinearLayout style="@style/Card">
+        <dev.headtracker.ui.SegmentedControl
+            android:id="@+id/movie_mode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginTop="12dp" />
+        <TextView
+            android:id="@+id/movie_caption"
+            style="@style/T.Footnote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="12dp" />
+    </LinearLayout>
+
     <!-- HEAD TRACKING -->
     <TextView style="@style/SectionHeader" android:text="@string/sec_tracking" android:accessibilityHeading="true" />
     <LinearLayout style="@style/Card">

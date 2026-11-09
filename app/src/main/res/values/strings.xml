@@ -12,6 +12,13 @@
     <string name="sec_tracking">Head Tracking</string>
     <string name="sec_playing">Now Playing</string>
     <string name="sec_advanced">Advanced</string>
+    <string name="sec_movies">Movies</string>
+    <string name="movie_auto">Auto</string>
+    <string name="movie_on">Always</string>
+    <string name="movie_off">Off</string>
+    <string name="caption_movie_auto">Cinema turns on whenever your phone is in landscape: sound stays anchored to the screen, dialogue is locked to its centre, effects spread wider and further back, and the added delay is lower for lip-sync.</string>
+    <string name="caption_movie_on">Cinema is always on: sound anchored to the screen, dialogue locked to its centre, wide effects, lower delay.</string>
+    <string name="caption_movie_off">Music settings are used in landscape too.</string>
     <string name="mode_immersive">Immersive 3D</string>
     <string name="mode_standard">Standard</string>
     <string name="caption_immersive">Every instrument gets its own fixed place in the room, re-rendered in real time. Android asks once to share audio; Pause keeps it, so you won\'t be asked again until you turn Spatial5 off or restart the phone.</string>

@@ -43,6 +43,23 @@ class FaceYawSource(
     private val analysisExecutor = Executors.newSingleThreadExecutor { Thread(it, "face-analysis") }
     private var detector: FaceDetector? = null
     private var provider: ProcessCameraProvider? = null
+    private var analysis: ImageAnalysis? = null
+    private val displays = context.getSystemService(android.hardware.display.DisplayManager::class.java)
+
+    /**
+     * The face detector needs upright faces, so frames must be rotated for how the screen is turned
+     * *now* (a movie in landscape), not how it was when tracking started.
+     */
+    private val displayListener = object : android.hardware.display.DisplayManager.DisplayListener {
+        override fun onDisplayChanged(id: Int) {
+            if (id == android.view.Display.DEFAULT_DISPLAY) analysis?.targetRotation = displayRotation()
+        }
+        override fun onDisplayAdded(id: Int) {}
+        override fun onDisplayRemoved(id: Int) {}
+    }
+
+    private fun displayRotation(): Int =
+        displays.getDisplay(android.view.Display.DEFAULT_DISPLAY)?.rotation ?: android.view.Surface.ROTATION_0
     @Volatile private var running = false
     @Volatile private var faceSeen = false
     private var lastProcessed = 0L
@@ -84,6 +101,8 @@ class FaceYawSource(
     fun stop() {
         if (!running) return
         running = false
+        displays.unregisterDisplayListener(displayListener)
+        analysis = null
         provider?.unbindAll()
         fps = 0f
     }
@@ -112,8 +131,11 @@ class FaceYawSource(
         ranges?.filter { it.upper >= TARGET_FPS }?.minWithOrNull(compareBy<Range<Int>> { it.upper }.thenBy { -it.lower })?.let {
             Camera2Interop.Extender(builder).setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it)
         }
+        builder.setTargetRotation(displayRotation())
         val analysis = builder.build()
+        this.analysis = analysis
         analysis.setAnalyzer(analysisExecutor, ::analyze)
+        displays.registerDisplayListener(displayListener, android.os.Handler(android.os.Looper.getMainLooper()))
         p.unbindAll()
         p.bindToLifecycle(owner, selector, analysis)
     }

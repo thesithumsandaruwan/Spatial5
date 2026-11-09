@@ -71,6 +71,7 @@ class ModelTest {
     @Test fun faceLostGlidesHome() {
         val e = HeadPoseEngine()
         var t = 0.0
+        repeat(10) { e.onFace(0.0, t); e.tick(t); t += 1 / 15.0 }      // looking at the screen = front
         repeat(30) { e.onFace(10.0, t); e.tick(t); t += 1 / 15.0 }
         assertTrue(e.tick(t) > 8)
         e.onFaceMissing()

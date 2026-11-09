@@ -104,6 +104,12 @@ class MainActivity : Activity() {
         bindSeek(widthBar, prefs.width) { prefs.width = it }
         bindSeek(roomBar, prefs.room) { prefs.room = it }
 
+        // Movies
+        val movie = findViewById<SegmentedControl>(R.id.movie_mode)
+        movie.segments = listOf(getString(R.string.movie_auto), getString(R.string.movie_on), getString(R.string.movie_off))
+        movie.select(prefs.movieMode, false)
+        movie.onChange = { i -> prefs.movieMode = i; updateCaptions() }
+
         // Tracking
         trackMode.segments = listOf(getString(R.string.track_face), getString(R.string.track_motion))
         trackMode.select(if (prefs.faceMode) 0 else 1, false)
@@ -209,6 +215,11 @@ class MainActivity : Activity() {
         audioCaption.setText(if (prefs.immersive) R.string.caption_immersive else R.string.caption_standard)
         findViewById<TextView>(R.id.dolby_tip).setText(if (prefs.immersive) R.string.tip_dolby_immersive else R.string.tip_dolby_standard)
         trackCaption.setText(if (prefs.faceMode) R.string.caption_face else R.string.caption_motion)
+        findViewById<TextView>(R.id.movie_caption).setText(when (prefs.movieMode) {
+            Prefs.MOVIE_ON -> R.string.caption_movie_on
+            Prefs.MOVIE_OFF -> R.string.caption_movie_off
+            else -> R.string.caption_movie_auto
+        })
         val immersive = prefs.immersive
         for (id in intArrayOf(R.id.auto_row, R.id.width_row, R.id.room_row)) findViewById<View>(id).alpha = if (immersive) 1f else 0.4f
         autoTune.isEnabled = immersive
@@ -310,7 +321,9 @@ class MainActivity : Activity() {
                 HeadSceneView.Speaker(30f, l(0), false), HeadSceneView.Speaker(-30f, l(1), false), HeadSceneView.Speaker(0f, l(2), false),
                 HeadSceneView.Speaker(90f, l(6), true), HeadSceneView.Speaker(-90f, l(7), true),
                 HeadSceneView.Speaker(145f, l(4), true), HeadSceneView.Speaker(-145f, l(5), true))
-            LiveState.LAYOUT_UPMIX -> listOf(
+            LiveState.LAYOUT_UPMIX -> if (LiveState.cinema) listOf(
+                HeadSceneView.Speaker(45f, l(0), false), HeadSceneView.Speaker(-45f, l(1), false), HeadSceneView.Speaker(0f, l(2), false),
+                HeadSceneView.Speaker(120f, l(4), true), HeadSceneView.Speaker(-120f, l(5), true)) else listOf(
                 HeadSceneView.Speaker(w, l(0), false), HeadSceneView.Speaker(-w, l(1), false), HeadSceneView.Speaker(0f, l(2), false),
                 HeadSceneView.Speaker(110f, l(4), true), HeadSceneView.Speaker(-110f, l(5), true))
             else -> listOf(HeadSceneView.Speaker(30f, l(0), false), HeadSceneView.Speaker(-30f, l(1), false))
@@ -373,8 +386,9 @@ class MainActivity : Activity() {
             s.startsWith("Idle") -> "Waiting for music"
             s.startsWith("Screen off") -> "Camera paused"
             s.startsWith("Camera permission") -> "Tracking · Motion"
-            prefs.faceMode && LiveState.active -> if (LiveState.faceVisible) "Tracking · Face" else "Looking for you…"
-            else -> "Tracking · Motion"
+            prefs.faceMode && LiveState.active -> if (!LiveState.faceVisible) "Looking for you…"
+                else if (LiveState.cinema) "Cinema · Face" else "Tracking · Face"
+            else -> if (LiveState.cinema) "Cinema · Motion" else "Tracking · Motion"
         }
     }
 

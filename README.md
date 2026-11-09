@@ -107,6 +107,22 @@ then the scene glides back to the front.
 
 Requires Android 10+ and Google Play services (for the face model).
 
+## Movies (Cinema profile)
+
+**Auto** (default) switches to Cinema whenever the screen is in landscape, including when a
+video app forces it with auto-rotate off. You can also set it to **Always** or **Off**. In Cinema:
+- **Sound is anchored to the screen**, not the room, as Apple does for video. Auto-recenter is
+  off, and "front" is re-learned from your face when the phone turns.
+- **Dialogue is locked to the screen:** near-centre content is pinned dead centre.
+- **Front stage is screen-wide** (90°), and effects and ambience spread wider and further back
+  (±120°).
+- **The room is very dry**, because films carry their own acoustics.
+- **Delay is lower:** the output buffer starts at 20 ms (it still grows by itself if the phone
+  stutters) to keep lip-sync close.
+
+Face tracking works in any orientation: camera frames are rotated to match the screen as it
+turns.
+
 ## Standard mode
 
 With no capture, only per-ear level and tone can change, so Standard is tuned to move Dolby's

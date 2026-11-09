@@ -134,6 +134,7 @@ class TrackerService : LifecycleService() {
         }, ContextCompat.RECEIVER_NOT_EXPORTED)
         audio.registerAudioPlaybackCallback(playbackCallback, main)
         audio.registerAudioDeviceCallback(deviceCallback, main)
+        displays.registerDisplayListener(displayListener, main)
 
         LiveState.running = true
         main.post(heartbeat)
@@ -167,7 +168,32 @@ class TrackerService : LifecycleService() {
         evaluate()
     }
 
+    private val displays by lazy { getSystemService(android.hardware.display.DisplayManager::class.java) }
+
+    /** Landscape = the screen is wider than tall right now (also when a video app forces it with auto-rotate off). */
+    private fun landscape(): Boolean {
+        val d = displays.getDisplay(android.view.Display.DEFAULT_DISPLAY) ?: return false
+        @Suppress("DEPRECATION") val m = android.util.DisplayMetrics().also { d.getRealMetrics(it) }
+        return m.widthPixels > m.heightPixels
+    }
+
+    private fun cinemaActive() = when (prefs.movieMode) {
+        Prefs.MOVIE_ON -> true
+        Prefs.MOVIE_OFF -> false
+        else -> landscape()
+    }
+
+    private val displayListener = object : android.hardware.display.DisplayManager.DisplayListener {
+        override fun onDisplayChanged(id: Int) {
+            if (id == android.view.Display.DEFAULT_DISPLAY && cinemaActive() != LiveState.cinema) applyPrefs()
+        }
+        override fun onDisplayAdded(id: Int) {}
+        override fun onDisplayRemoved(id: Int) {}
+    }
+
     override fun onDestroy() {
+        displays.unregisterDisplayListener(displayListener)
+        LiveState.cinema = false
         LiveState.running = false; LiveState.active = false; LiveState.immersiveRunning = false; LiveState.paused = false
         main.removeCallbacksAndMessages(null)
         prefs.sp.unregisterOnSharedPreferenceChangeListener(prefListener)
@@ -207,6 +233,7 @@ class TrackerService : LifecycleService() {
         e.stageHalfWidth = prefs.stageHalfWidthDeg
         e.roomAmount = prefs.room / 100f
         e.autoTune = prefs.autoTune
+        e.cinema = cinemaActive()
         immersive = e
         e.start()
         LiveState.immersiveRunning = true
@@ -434,7 +461,7 @@ class TrackerService : LifecycleService() {
             e == null || !prefs.immersive -> "Standard · zero added delay"
             e.captureChannels == 0 || !e.trackPlaying -> "Immersive 3D · ready"
             else -> {
-                val layout = if (e.surround) "Surround · virtual speakers" else "Stereo · 3D up-mix"
+                val layout = (if (LiveState.cinema) "Cinema · " else "") + if (e.surround) "Surround · virtual speakers" else "Stereo · 3D up-mix"
                 "Immersive 3D · $layout · ${(e.latencySec * 1000).toInt()} ms"
             }
         }
@@ -551,8 +578,12 @@ class TrackerService : LifecycleService() {
         val faceMode = prefs.faceMode && hasCamera()
         val s = prefs.strength / 100.0 * 1.2
         val smooth = prefs.smoothness / 100.0
-        val inv = prefs.invert; val recenter = prefs.autoRecenter; val world = prefs.worldAnchor
-        immersive?.let { it.stageHalfWidth = prefs.stageHalfWidthDeg; it.roomAmount = prefs.room / 100f; it.autoTune = prefs.autoTune }
+        val cine = cinemaActive()
+        // Cinema: sound anchored to the screen (like Apple's spatial audio for video), no drifting recenter.
+        val inv = prefs.invert; val recenter = prefs.autoRecenter && !cine; val world = prefs.worldAnchor && !cine
+        if (cine != LiveState.cinema) tracker.post { engine.resetFront() }      // phone turned: re-learn "front"
+        LiveState.cinema = cine
+        immersive?.let { it.stageHalfWidth = prefs.stageHalfWidthDeg; it.roomAmount = prefs.room / 100f; it.autoTune = prefs.autoTune; it.cinema = cine }
         tracker.post {
             engine.mode = if (faceMode) HeadPoseEngine.Mode.FACE else HeadPoseEngine.Mode.MOTION
             engine.smoothness = smooth; engine.invert = inv; engine.autoRecenter = recenter; engine.worldAnchor = world
