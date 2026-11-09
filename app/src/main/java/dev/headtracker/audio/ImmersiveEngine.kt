@@ -36,6 +36,14 @@ class ImmersiveEngine(
 ) {
     @Volatile var uids: Set<Int> = emptySet()
         set(v) { if (field != v) { field = v; uidsSetMs = SystemClock.uptimeMillis(); rebuild = true } }
+    /** Capture every media app (usage based) instead of [uids]: used when players were found by session scan. */
+    @Volatile var captureAll = false
+        set(v) { if (field != v) { field = v; uidsSetMs = SystemClock.uptimeMillis(); rebuild = true } }
+    /** In [captureAll] mode: known apps that are NOT muted (so they must not be captured). */
+    @Volatile var excludeUids: Set<Int> = emptySet()
+        set(v) { if (field != v) { field = v; if (captureAll) rebuild = true } }
+    /** Our own output's audio session (never muted or scanned). */
+    @Volatile var trackSession = 0; private set
     @Volatile var probeUids: Set<Int> = emptySet()
         set(v) { if (field != v) { field = v; rebuildProbe = true } }
     @Volatile var uidsSetMs = 0L; private set
@@ -88,6 +96,7 @@ class ImmersiveEngine(
         levels = renderer.levels
         val hop = renderer.hop
         val track = buildTrack(sr)
+        trackSession = track.audioSessionId
         // Start with ~40 ms of output buffer; grow automatically if the system ever underruns.
         var bufFrames = min(track.bufferCapacityInFrames, (0.04 * sr).toInt())
         track.bufferSizeInFrames = bufFrames
@@ -119,8 +128,8 @@ class ImmersiveEngine(
                     record?.let { safeStop(it) }; record = null
                     captureChannels = 0
                     val set = uids
-                    if (set.isNotEmpty()) {
-                        val built = buildRecord(set, sr, hop, stereoOnly = forceStereo)
+                    if (set.isNotEmpty() || captureAll) {
+                        val built = buildRecord(if (captureAll) emptySet() else set, sr, hop, stereoOnly = forceStereo)
                         record = built?.first; channels = built?.second ?: 2
                         if (record != null) {
                             input = FloatArray(hop * channels)
@@ -133,7 +142,7 @@ class ImmersiveEngine(
                 }
                 val rec = record
                 if (rec == null) {
-                    if (trackPlaying) { track.pause(); track.flush(); trackPlaying = false }
+                    if (trackPlaying) { track.pause(); track.flush(); trackPlaying = false; written = 0; lastCheck = SystemClock.uptimeMillis() }
                     SystemClock.sleep(if (probe != null) 20 else 50)
                     continue
                 }
@@ -144,8 +153,13 @@ class ImmersiveEngine(
                 for (v in input) { val a = abs(v); if (a > peak) peak = a }
                 val now = SystemClock.uptimeMillis()
                 if (peak > 1e-6f) lastSignalMs = now
-                if (now - lastSignalMs > 3000) {
-                    if (trackPlaying) { track.pause(); track.flush(); trackPlaying = false; renderer.reset() }
+                // Only stop our output after a long silence: short gaps between songs keep everything
+                // running (no restart glitch, no re-measuring latency, tuning state kept).
+                if (now - lastSignalMs > 8000) {
+                    if (trackPlaying) {
+                        track.pause(); track.flush(); trackPlaying = false; renderer.reset()
+                        written = 0; lastCheck = now
+                    }
                     continue
                 }
                 if (!trackPlaying) { track.play(); trackPlaying = true }
@@ -213,7 +227,11 @@ class ImmersiveEngine(
     @SuppressLint("MissingPermission")
     private fun buildRecord(set: Set<Int>, sr: Int, hop: Int, stereoOnly: Boolean): Pair<AudioRecord, Int>? {
         val config = AudioPlaybackCaptureConfiguration.Builder(projection).apply {
-            set.forEach { addMatchingUid(it) }
+            if (set.isEmpty()) {
+                // Everything that plays media (our own track is excluded by its capture policy).
+                addMatchingUsage(AudioAttributes.USAGE_MEDIA); addMatchingUsage(AudioAttributes.USAGE_GAME); addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
+                excludeUids.forEach { if (it > 0) excludeUid(it) }
+            } else set.forEach { addMatchingUid(it) }
         }.build()
         val minStereo = AudioRecord.getMinBufferSize(sr, AudioFormat.CHANNEL_IN_STEREO, AudioFormat.ENCODING_PCM_FLOAT)
         val layouts = if (stereoOnly) intArrayOf(2) else intArrayOf(8, 6, 2)

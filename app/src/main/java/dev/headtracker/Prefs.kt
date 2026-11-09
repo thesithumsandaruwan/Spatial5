@@ -52,12 +52,17 @@ class Prefs(context: Context) {
     /** Apps learned to block audio capture: they start in standard mode (no muting blip). */
     val blocked: Set<String> get() = sp.getStringSet(K_BLOCKED, emptySet()) ?: emptySet()
     fun addBlocked(pkgs: Set<String>) { if (pkgs.isNotEmpty()) sp.edit().putStringSet(K_BLOCKED, blocked + pkgs).apply() }
+    /** Apps proven capturable (they produced audio while muted): never switched out on a gap between songs. */
+    val verified: Set<String> get() = sp.getStringSet(K_VERIFIED, emptySet()) ?: emptySet()
+    fun addVerified(pkgs: Set<String>) { val n = pkgs - verified; if (n.isNotEmpty()) sp.edit().putStringSet(K_VERIFIED, verified + n).apply() }
+
     fun removeBlocked(pkgs: Set<String>) { if (pkgs.any { it in blocked }) sp.edit().putStringSet(K_BLOCKED, blocked - pkgs).apply() }
 
     companion object {
         const val K_IMMERSIVE = "immersive"
         const val K_AUTO = "auto_tune"
         const val K_BLOCKED = "blocked_pkgs"
+        const val K_VERIFIED = "verified_pkgs"
         const val K_WORLD = "world_anchor"
         const val K_WIDTH = "width"
         const val K_ROOM = "room"

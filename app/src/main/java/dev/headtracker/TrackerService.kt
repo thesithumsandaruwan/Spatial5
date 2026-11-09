@@ -70,10 +70,20 @@ class TrackerService : LifecycleService() {
     private val scanExec = Executors.newSingleThreadExecutor { Thread(it, "scan") }
 
     // Tracker-thread state.
-    private class Session(val pkg: String, val uid: Int, val fromDump: Boolean, var seen: Long)
+    private class Session(val pkg: String, val uid: Int, val fromDump: Boolean, var seen: Long, val discovered: Boolean = false)
     private val sessions = HashMap<Int, Session>()
     /** Apps (by uid) whose audio is currently muted + re-rendered in 3D. Everything else is "open". */
     private val mutedUids = HashSet<Int>()
+    /** Sessions found by scanning (players that don't announce themselves; uid unknown). */
+    private val mutedDiscovered = LinkedHashSet<Int>()
+    private val verifiedUids = HashSet<Int>()
+    private val verifiedSessions = HashSet<Int>()
+    private val rejectedSessions = HashSet<Int>()
+    private val pendingDiscovery = HashMap<Int, Long>()
+    @Volatile private var scanBusy = false
+    private var lastFullScanMs = 0L
+    private var lastQuickScanMs = 0L
+    private lateinit var prober: dev.headtracker.audio.SessionProber
     private val failedSessions = HashSet<Int>()
     private var captureUids: Set<Int> = emptySet()
     /** Global in-place head tracking (session 0) for audio we can't re-render: unknown apps, apps that block capture. */
@@ -104,6 +114,7 @@ class TrackerService : LifecycleService() {
         }
         motion = PhoneMotionSource(this, tracker) { engine.onPhoneYaw(it) }
         scanner = DumpSessionScanner(this)
+        prober = dev.headtracker.audio.SessionProber(audio)
         screenOn = getSystemService(PowerManager::class.java).isInteractive
         headphones = headphonesConnected()
 
@@ -199,51 +210,55 @@ class TrackerService : LifecycleService() {
 
     /**
      * Decides what every app gets. Tracker thread.
-     *  - Immersive on: known apps in [mutedUids] are muted + re-rendered in 3D. All other audio
-     *    (apps that don't announce a session, apps that block capture) gets the global in-place
-     *    effect while it plays, so every app is head-tracked without adb.
+     *  - Immersive on: muted apps are re-rendered in 3D. Known apps (announced session) are captured
+     *    by uid; players found by session scan force "capture all media", excluding every known
+     *    un-muted app so nothing is ever heard twice.
+     *  - Everything not re-rendered gets the global in-place effect while it plays (bypassed, not
+     *    destroyed, when idle: no glitches).
      *  - Immersive off: global in-place effect for everything.
-     * Falls back to per-session shaping if this phone refuses global effects.
      */
     private fun reconcile() {
         val e = immersive
         val immersiveOn = e != null && prefs.immersive && headphones
-        if (!immersiveOn) mutedUids.clear()
+        if (!immersiveOn) { mutedUids.clear(); mutedDiscovered.clear() }
         val wanted = HashMap<Int, Mode>()
         val capture = HashSet<Int>()
-        val probe = HashSet<Int>()
-        val shapeAll = !immersiveOn || globalEngaged
-        if (shapeAll && globalSupported) wanted[0] = Mode.SHAPE
+        val open = HashSet<Int>()
+        if (globalSupported) wanted[0] = Mode.SHAPE
         for ((id, s) in sessions) {
             if (id in failedSessions) continue
-            when {
-                immersiveOn && s.uid > 0 && s.uid in mutedUids -> { wanted[id] = Mode.MUTE; capture += s.uid }
-                else -> {
-                    if (immersiveOn && s.uid > 0) probe += s.uid
-                    if (shapeAll && !globalSupported) wanted[id] = Mode.SHAPE
-                }
+            val muted = immersiveOn && ((s.uid > 0 && s.uid in mutedUids) || (s.discovered && id in mutedDiscovered))
+            if (muted) { wanted[id] = Mode.MUTE; if (s.uid > 0) capture += s.uid }
+            else {
+                if (immersiveOn && s.uid > 0) open += s.uid
+                if (!globalSupported && !s.discovered) wanted[id] = Mode.SHAPE
             }
         }
         val failed = effects.apply(wanted).toMutableSet()
-        if (0 in failed) { globalSupported = false; failed.remove(0); if (shapeAll) { reconcile(); return } }
+        if (0 in failed) { globalSupported = false; failed.remove(0); reconcile(); return }
         failedSessions += failed
+        effects.setEnabled(0, !immersiveOn || globalEngaged)
         // Only capture apps whose mute actually took effect, so nothing is ever heard twice.
         val muted = capture.filterTo(HashSet()) { uid -> sessions.any { (id, s) -> s.uid == uid && effects.modeOf(id) == Mode.MUTE } }
-        captureUids = muted
+        val anyDiscovered = mutedDiscovered.any { effects.modeOf(it) == Mode.MUTE }
+        captureUids = if (anyDiscovered) muted + setOf(-1) else muted
+        e?.captureAll = immersiveOn && anyDiscovered
+        e?.excludeUids = if (immersiveOn) open - muted else emptySet()
         e?.uids = if (immersiveOn) muted else emptySet()
-        e?.probeUids = if (immersiveOn) probe - muted else emptySet()
+        e?.probeUids = if (immersiveOn) open - muted else emptySet()
         LiveState.sessions = describe()
     }
 
     private fun describe(): String {
         val lines = sessions.entries.map { (id, s) ->
-            val name = appLabel(s.pkg)
+            val name = if (s.discovered) "Other player" else appLabel(s.pkg)
             when {
                 id in failedSessions -> "$name\tUnavailable"
                 effects.modeOf(id) == Mode.MUTE -> "$name\t3D"
+                s.discovered -> ""
                 else -> "$name\tStandard"
             }
-        }.distinct().toMutableList()
+        }.filter { it.isNotEmpty() }.distinct().toMutableList()
         if (globalEngaged || immersive == null || !prefs.immersive) lines += "Other apps\tStandard"
         return lines.joinToString("\n")
     }
@@ -254,47 +269,73 @@ class TrackerService : LifecycleService() {
         catch (_: Throwable) { pkg.substringAfterLast('.').replaceFirstChar { it.uppercase() } }
     }
 
+    private fun mediaPlayers(ownPlaying: Boolean): Int =
+        audio.activePlaybackConfigurations.count { it.audioAttributes.usage in MEDIA_USAGES } - (if (ownPlaying) 1 else 0)
+
     /**
      * Self-healing 3D/standard switching, every 250 ms:
-     *  - Something plays but the 3D capture is silent -> the sound comes from an app we don't
-     *    re-render. Engage the global effect; if muted apps produced the silence (they block
-     *    capture), un-mute them so they're never silenced.
+     *  - Muted apps that produce captured audio are "verified" (remembered): they're never switched
+     *    out on a quiet gap between songs.
+     *  - Something plays but the 3D capture is silent: unverified muted apps are un-muted (they block
+     *    capture) and the global effect covers the audio, while a session scan looks for the player.
      *  - The probe hears a known, un-muted app -> it's capturable: mute it and render it in 3D.
      */
     private val watchdog = object : Runnable {
         override fun run() {
             val e = immersive
             val now = SystemClock.uptimeMillis()
-            if (e != null && captureUids.isNotEmpty() &&
+            if (e != null && e.alive && e.captureAll && e.captureChannels == 0 && now - e.uidsSetMs > 1500) {
+                // "Capture all media" not possible on this phone: drop scanned players, keep 3D for known apps.
+                Log.w(TAG, "capture-all unavailable; scanned players stay in standard mode")
+                rejectedSessions += mutedDiscovered; mutedDiscovered.clear(); reconcile()
+            } else if (e != null && captureUids.isNotEmpty() &&
                 (!e.alive || (e.captureChannels == 0 && now - e.uidsSetMs > 1500))) {
                 Log.w(TAG, "capture unavailable, falling back to standard mode")
                 main.post { stopImmersive(); evaluate() }
             } else if (e != null && prefs.immersive && headphones) {
-                val othersPlaying = audio.activePlaybackConfigurations.size - (if (e.trackPlaying) 1 else 0) > 0
-                val mainSilentFor = if (captureUids.isEmpty()) Long.MAX_VALUE else now - e.lastSignalMs
-                val captureSettled = captureUids.isEmpty() || now - e.captureStartedMs > 1200
+                val media = mediaPlayers(e.trackPlaying)
+                val anyMuted = captureUids.isNotEmpty()
+                val mainSilentFor = if (!anyMuted) Long.MAX_VALUE else now - e.lastSignalMs
+                val settled = !anyMuted || now - e.captureStartedMs > 1500
                 var changed = false
 
-                if (captureUids.isNotEmpty() && e.captureChannels > 2 && !e.forceStereo &&
-                    othersPlaying && captureSettled && mainSilentFor > 1200) {
+                if (anyMuted && e.captureChannels > 2 && !e.forceStereo && media > 0 && settled && mainSilentFor > 1500) {
                     e.forceStereo = true                       // multichannel capture silent on this phone
                 } else {
-                    // 1) Muted apps silent while something plays: they block capture (or aren't the source).
-                    if (captureUids.isNotEmpty() && othersPlaying && captureSettled && mainSilentFor > 1200) {
-                        val pkgs = sessions.values.filter { it.uid in mutedUids }.map { it.pkg }.toSet()
-                        if (mutedUids.size == 1) prefs.addBlocked(pkgs)
-                        mutedUids.clear(); changed = true
+                    // Verify: audio is coming out of the capture.
+                    if (anyMuted && now - e.lastSignalMs < 300) {
+                        val unverifiedUids = mutedUids - verifiedUids
+                        val unverifiedSessions = mutedDiscovered - verifiedSessions
+                        if (unverifiedUids.size + unverifiedSessions.size <= 1) {
+                            verifiedUids += unverifiedUids; verifiedSessions += unverifiedSessions
+                            prefs.addVerified(sessions.values.filter { it.uid in unverifiedUids }.map { it.pkg }.toSet())
+                        }
                     }
-                    // 2) Probe hears an un-muted known app: promote it to 3D.
+                    // Silent while media plays: demote what can't be captured (verified apps get a long grace period).
+                    if (anyMuted && media > 0 && settled && mainSilentFor > 1500) {
+                        val longSilence = mainSilentFor > 10_000
+                        val dropUids = mutedUids.filter { longSilence || (it !in verifiedUids && sessions.values.none { s -> s.uid == it && s.pkg in prefs.verified }) }
+                        val dropSessions = mutedDiscovered.filter { longSilence || it !in verifiedSessions }
+                        if (dropUids.isNotEmpty() || dropSessions.isNotEmpty()) {
+                            if (dropUids.size == 1 && dropSessions.isEmpty()) prefs.addBlocked(sessions.values.filter { it.uid in dropUids }.map { it.pkg }.toSet())
+                            mutedUids -= dropUids.toSet(); mutedDiscovered -= dropSessions.toSet(); rejectedSessions += dropSessions
+                            changed = true
+                        }
+                    }
+                    // Probe hears an un-muted known app: promote it to 3D.
                     if (now - e.probeSignalMs < 400 && e.probeUids.isNotEmpty()) {
                         val promote = e.probeUids
                         mutedUids += promote
                         prefs.removeBlocked(sessions.values.filter { it.uid in promote }.map { it.pkg }.toSet())
                         changed = true
                     }
-                    // 3) Global effect only while audio we can't re-render is playing.
-                    val wantGlobal = othersPlaying && (captureUids.isEmpty() || mainSilentFor > 600)
-                    if (wantGlobal != globalEngaged) { globalEngaged = wantGlobal; changed = true }
+                    // Global effect only while audio we don't re-render is playing (bypass toggle: glitch-free).
+                    // With a 3D app muted, short gaps between songs never switch it on (no tilt at song start).
+                    val wantGlobal = media > 0 && (!anyMuted || mainSilentFor > 3000)
+                    if (wantGlobal != globalEngaged) { globalEngaged = wantGlobal; effects.setEnabled(0, wantGlobal); LiveState.sessions = describe() }
+                    // Unexplained media playing: look for the player's session.
+                    if (media > 0 && (!anyMuted || mainSilentFor > 2500)) discover(now, e)
+                    else if (e.captureAll && media > 0 && now - lastQuickScanMs > 5000) discover(now, e)
                 }
                 if (changed) reconcile()
             }
@@ -309,6 +350,48 @@ class TrackerService : LifecycleService() {
             }
             tracker.postDelayed(this, 250)
         }
+    }
+
+    /**
+     * Scans recent audio sessions for players that didn't announce themselves. A session must be
+     * playing in two scans ~2 s apart (filters out notification / navigation blips) before it's muted.
+     */
+    private fun discover(now: Long, e: ImmersiveEngine) {
+        if (scanBusy || checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return
+        val full = now - lastFullScanMs > 20_000 && pendingDiscovery.isEmpty()
+        if (!full && now - lastQuickScanMs < if (pendingDiscovery.isEmpty()) 3000 else 1800) return
+        if (full) lastFullScanMs = now
+        lastQuickScanMs = now
+        val skip = HashSet<Int>(sessions.keys).apply { addAll(rejectedSessions); add(e.trackSession) }
+        val depth = if (full) dev.headtracker.audio.SessionProber.FULL_DEPTH else dev.headtracker.audio.SessionProber.QUICK_DEPTH
+        val pending = pendingDiscovery.keys.filter { it !in skip }
+        scanBusy = true
+        try {
+            scanExec.execute {
+                val confirmedNow = try {
+                    val found = prober.findPlaying(depth, skip)
+                    found + prober.measure(pending.filter { it !in found })
+                } catch (_: Throwable) { emptyList() }
+                tracker.post {
+                    scanBusy = false
+                    val t = SystemClock.uptimeMillis()
+                    pendingDiscovery.keys.retainAll(confirmedNow.toSet())
+                    val media = mediaPlayers(immersive?.trackPlaying == true)
+                    val confirmed = confirmedNow.filter { (pendingDiscovery[it] ?: t) <= t - 1500 }
+                    confirmedNow.forEach { pendingDiscovery.putIfAbsent(it, t) }
+                    if (confirmed.isEmpty() || media <= 0) return@post
+                    for (sid in confirmed.take(media.coerceAtLeast(1))) {
+                        pendingDiscovery.remove(sid)
+                        sessions[sid] = Session("", -1, false, t, discovered = true)
+                        mutedDiscovered += sid
+                        Log.i(TAG, "discovered player session $sid -> 3D")
+                    }
+                    // Keep the list small: oldest discovered sessions are long gone.
+                    while (mutedDiscovered.size > 6) { val old = mutedDiscovered.first(); mutedDiscovered.remove(old); sessions.remove(old) }
+                    reconcile()
+                }
+            }
+        } catch (_: Throwable) { scanBusy = false }
     }
 
     private fun renderDescription(): String {
@@ -552,6 +635,8 @@ class TrackerService : LifecycleService() {
         private const val NOTIF_ID = 1
         private const val TICK_MS = 10L          // 100 Hz control rate
         private const val LIGHT_LEAD = 0.12      // typical Bluetooth delay for the in-place path
+        private val MEDIA_USAGES = setOf(
+            android.media.AudioAttributes.USAGE_MEDIA, android.media.AudioAttributes.USAGE_GAME, android.media.AudioAttributes.USAGE_UNKNOWN)
         private val HEADPHONE_TYPES = buildSet {
             add(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
             add(AudioDeviceInfo.TYPE_WIRED_HEADPHONES)

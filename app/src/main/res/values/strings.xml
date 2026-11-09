@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">Head Tracker</string>
-    <string name="title">Spatial Audio</string>
+    <string name="app_name">Spatial5</string>
+    <string name="title">Spatial5</string>
     <string name="start">Start Head Tracking</string>
     <string name="stop">Stop</string>
     <string name="recenter">Recenter</string>
@@ -30,5 +30,5 @@
     <string name="invert">Invert Direction</string>
     <string name="pause_screen_off">Pause Camera When Screen Is Off</string>
     <string name="notif_channel">Head tracking</string>
-    <string name="help">For the cleanest sound, turn off Dolby Atmos or other spatial effects in your phone\'s sound settings while Immersive 3D is on. When Android asks to share your screen, choose \"Entire screen\": only audio is used, and nothing is recorded or leaves your phone.\n\nHRTF data: MIT Media Lab KEMAR (Gardner &amp; Martin).</string>
+    <string name="help">For the cleanest sound, turn off Dolby Atmos or other spatial effects in your phone\'s sound settings while Immersive 3D is on. When Android asks to share your screen, choose \"Entire screen\": only audio is used, and nothing is recorded or leaves your phone.\n\nHRTF data: MIT Media Lab KEMAR (Gardner &amp; Martin). Head model: \"Lee Perry-Smith\" scan by Infinite Realities, CC BY 3.0.</string>
 </resources>

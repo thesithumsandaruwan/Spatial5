@@ -30,7 +30,7 @@ class HeadSceneView @JvmOverloads constructor(context: Context, attrs: Attribute
 
     class Speaker(val azimuth: Float, val level: Float, val ambient: Boolean)
 
-    private val renderer = SceneRenderer()
+    private val renderer = SceneRenderer { context.assets.open("head.bin") }
 
     init {
         setEGLContextClientVersion(2)
@@ -56,6 +56,7 @@ class HeadSceneView @JvmOverloads constructor(context: Context, attrs: Attribute
     }
 
     private companion object {
+        const val RING = 2.15f
         fun HeadMesh.Data.toMesh() = Mesh(floatBuffer(vertices), shortBuffer(indices), indices.size)
         fun floatBuffer(a: FloatArray): FloatBuffer =
             ByteBuffer.allocateDirect(a.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer().apply { put(a); position(0) }
@@ -81,7 +82,7 @@ class HeadSceneView @JvmOverloads constructor(context: Context, attrs: Attribute
 
     private class Mesh(val vbo: FloatBuffer, val ibo: ShortBuffer, val count: Int)
 
-    private class SceneRenderer : Renderer {
+    private class SceneRenderer(private val headAsset: () -> java.io.InputStream) : Renderer {
         @Volatile var yaw = 0f
         @Volatile var speakers: List<Speaker> = emptyList()
         @Volatile var active = false
@@ -93,16 +94,16 @@ class HeadSceneView @JvmOverloads constructor(context: Context, attrs: Attribute
         private lateinit var sphere: Mesh
         private lateinit var ring: FloatBuffer
         private var ringCount = 0
-        private lateinit var shadow: FloatBuffer
         private lateinit var halo: FloatBuffer
         private val proj = FloatArray(16); private val view = FloatArray(16)
         private val model = FloatArray(16); private val mvp = FloatArray(16); private val tmp = FloatArray(16)
-        private val eye = floatArrayOf(0f, 3.6f, 7.0f)
+        private val eye = floatArrayOf(0f, 2.6f, 6.2f)
 
         override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
             prog = program(HeadMesh.VS, HeadMesh.FS); flatProg = program(HeadMesh.FLAT_VS, HeadMesh.FLAT_FS)
-            head = HeadMesh.head().toMesh(); sphere = HeadMesh.sphere(18, 12).toMesh()
-            buildRing(); buildShadow(); buildHalo()
+            head = (try { HeadMesh.load(headAsset()) } catch (t: Throwable) { HeadMesh.procedural() }).toMesh()
+            sphere = HeadMesh.sphere(18, 12).toMesh()
+            buildRing(); buildHalo()
             glEnable(GL_DEPTH_TEST)
         }
 
@@ -111,10 +112,10 @@ class HeadSceneView @JvmOverloads constructor(context: Context, attrs: Attribute
             val aspect = w.toFloat() / max(1, h)
             // Fit the speaker ring horizontally whatever the shape of the view; head sits in the lower part,
             // leaving room for the title overlay.
-            val hHalf = Math.toRadians(20.5)
+            val hHalf = Math.toRadians(19.0)
             val vfov = Math.toDegrees(2 * kotlin.math.atan(kotlin.math.tan(hHalf) / aspect)).toFloat().coerceIn(30f, 62f)
             Matrix.perspectiveM(proj, 0, vfov, aspect, 1f, 30f)
-            Matrix.setLookAtM(view, 0, eye[0], eye[1], eye[2], 0f, 0.2f, 0f, 0f, 1f, 0f)
+            Matrix.setLookAtM(view, 0, eye[0], eye[1], eye[2], 0f, 0.05f, 0f, 0f, 1f, 0f)
         }
 
         override fun onDrawFrame(gl: GL10?) {
@@ -124,7 +125,6 @@ class HeadSceneView @JvmOverloads constructor(context: Context, attrs: Attribute
             // Soft contact shadow + orbit ring (transparent, no depth write).
             glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); glDepthMask(false)
             Matrix.setIdentityM(model, 0)
-            flat(shadow, 66, GL_TRIANGLE_FAN, if (dark) floatArrayOf(0f, 0f, 0f, 0.55f) else floatArrayOf(0f, 0f, 0f, 0.10f))
             val ringAlpha = if (active) 0.35f else 0.18f
             flat(ring, ringCount, GL_TRIANGLE_STRIP, if (dark) floatArrayOf(1f, 1f, 1f, ringAlpha) else floatArrayOf(0f, 0f, 0f, ringAlpha * 0.6f))
             glDepthMask(true); glDisable(GL_BLEND)
@@ -137,9 +137,9 @@ class HeadSceneView @JvmOverloads constructor(context: Context, attrs: Attribute
             // Speakers (fixed in the room).
             for (s in speakers) {
                 val a = Math.toRadians(s.azimuth.toDouble())
-                val r = 2.35f
+                val r = RING
                 Matrix.setIdentityM(model, 0)
-                Matrix.translateM(model, 0, (sin(a) * r).toFloat(), -0.05f, (cos(a) * r).toFloat())
+                Matrix.translateM(model, 0, (sin(a) * r).toFloat(), 0f, (cos(a) * r).toFloat())
                 val size = (if (s.ambient) 0.09f else 0.12f) * (1f + 0.3f * s.level)
                 Matrix.scaleM(model, 0, size, size, size)
                 val glow = if (s.ambient) floatArrayOf(0.39f, 0.82f, 1f) else floatArrayOf(0.04f, 0.52f, 1f)
@@ -150,12 +150,12 @@ class HeadSceneView @JvmOverloads constructor(context: Context, attrs: Attribute
                 glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE); glDepthMask(false)
                 for (s in speakers) {
                     val a = Math.toRadians(s.azimuth.toDouble())
-                    val x = (sin(a) * 2.35).toFloat(); val z = (cos(a) * 2.35).toFloat()
+                    val x = (sin(a) * RING).toFloat(); val z = (cos(a) * RING).toFloat()
                     Matrix.setIdentityM(model, 0)
-                    Matrix.translateM(model, 0, x, -0.05f, z)
+                    Matrix.translateM(model, 0, x, 0f, z)
                     // Billboard: face the camera.
                     Matrix.rotateM(model, 0, Math.toDegrees(kotlin.math.atan2((eye[0] - x).toDouble(), (eye[2] - z).toDouble())).toFloat(), 0f, 1f, 0f)
-                    Matrix.rotateM(model, 0, -Math.toDegrees(kotlin.math.atan2(eye[1] + 0.05, kotlin.math.hypot((eye[0] - x).toDouble(), (eye[2] - z).toDouble()))).toFloat(), 1f, 0f, 0f)
+                    Matrix.rotateM(model, 0, -Math.toDegrees(kotlin.math.atan2(eye[1].toDouble(), kotlin.math.hypot((eye[0] - x).toDouble(), (eye[2] - z).toDouble()))).toFloat(), 1f, 0f, 0f)
                     val r = (if (s.ambient) 0.32f else 0.42f) * (0.7f + 0.8f * s.level)
                     Matrix.scaleM(model, 0, r, r, r)
                     val c = if (s.ambient) floatArrayOf(0.39f, 0.82f, 1f, 0.22f + 0.4f * s.level) else floatArrayOf(0.1f, 0.55f, 1f, 0.25f + 0.5f * s.level)
@@ -175,6 +175,7 @@ class HeadSceneView @JvmOverloads constructor(context: Context, attrs: Attribute
             glUniform3fv(glGetUniformLocation(prog, "uEye"), 1, eye, 0)
             glUniform3fv(glGetUniformLocation(prog, "uGlow"), 1, glow, 0)
             glUniform1f(glGetUniformLocation(prog, "uEmissive"), emissive)
+            glUniform3fv(glGetUniformLocation(prog, "uBg"), 1, bg, 0)
             val pos = glGetAttribLocation(prog, "aPos"); val nor = glGetAttribLocation(prog, "aNor")
             m.vbo.position(0); glVertexAttribPointer(pos, 3, GL_FLOAT, false, 24, m.vbo); glEnableVertexAttribArray(pos)
             m.vbo.position(3); glVertexAttribPointer(nor, 3, GL_FLOAT, false, 24, m.vbo); glEnableVertexAttribArray(nor)
@@ -195,14 +196,14 @@ class HeadSceneView @JvmOverloads constructor(context: Context, attrs: Attribute
         }
 
         private fun buildRing() {
-            val n = 128; val r = 2.35f; val w = 0.012f
+            val n = 128; val r = RING; val w = 0.010f
             val f = FloatArray((n + 1) * 2 * 4)
             for (i in 0..n) {
                 val a = 2 * PI * i / n
                 for (j in 0..1) {
                     val rr = r + if (j == 0) -w else w
                     val o = (i * 2 + j) * 4
-                    f[o] = (sin(a) * rr).toFloat(); f[o + 1] = -0.05f; f[o + 2] = (cos(a) * rr).toFloat(); f[o + 3] = 1f
+                    f[o] = (sin(a) * rr).toFloat(); f[o + 1] = 0f; f[o + 2] = (cos(a) * rr).toFloat(); f[o + 3] = 1f
                 }
             }
             ring = floatBuffer(f); ringCount = (n + 1) * 2
@@ -214,16 +215,6 @@ class HeadSceneView @JvmOverloads constructor(context: Context, attrs: Attribute
             f[3] = 1f
             for (i in 0..n) { val a = 2 * PI * i / n; val o = (i + 1) * 4; f[o] = cos(a).toFloat(); f[o + 1] = sin(a).toFloat() }
             halo = floatBuffer(f)
-        }
-
-        private fun buildShadow() {
-            val n = 64; val f = FloatArray((n + 2) * 4)
-            f[0] = 0f; f[1] = -1.56f; f[2] = -0.05f; f[3] = 1f
-            for (i in 0..n) {
-                val a = 2 * PI * i / n; val o = (i + 1) * 4
-                f[o] = (sin(a) * 1.5).toFloat(); f[o + 1] = -1.56f; f[o + 2] = (cos(a) * 1.1 - 0.05).toFloat(); f[o + 3] = 0f
-            }
-            shadow = floatBuffer(f)
         }
 
         companion object {

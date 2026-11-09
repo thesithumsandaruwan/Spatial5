@@ -26,6 +26,12 @@ class SpatialEffectManager(private val model: HeadShadowModel = HeadShadowModel(
     private var strength = 0.6
 
     fun modeOf(session: Int): Mode? = slots[session]?.mode
+
+    /** Enables/bypasses an attached effect without tearing it down (no audio-chain reconfiguration, no glitch). */
+    fun setEnabled(session: Int, on: Boolean) {
+        val dp = slots[session]?.dp ?: return
+        try { if (dp.enabled != on) dp.enabled = on } catch (_: Throwable) {}
+    }
     fun isAttached(session: Int) = slots.containsKey(session)
 
     /** Makes the attached effects match [wanted] (session -> mode). Returns sessions that failed. */

@@ -1,5 +1,4 @@
 <resources>
-    <color name="ic_bg">#0A84FF</color>
     <!-- iOS system palette, light -->
     <color name="bg">#F2F2F7</color>
     <color name="hero_bg">#F2F2F7</color>

@@ -65,6 +65,9 @@ class MainActivity : Activity() {
         widthBar = findViewById(R.id.width); roomBar = findViewById(R.id.room)
         widthValue = findViewById(R.id.width_value); roomValue = findViewById(R.id.room_value)
         render = findViewById(R.id.render); apps = findViewById(R.id.apps)
+        findViewById<TextView>(R.id.title).text = android.text.SpannableString(getString(R.string.title)).apply {
+            setSpan(android.text.style.ForegroundColorSpan(getColor(R.color.accent)), length - 1, length, 0)
+        }
 
         val dark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         scene.setBackground(getColor(R.color.hero_bg), dark)

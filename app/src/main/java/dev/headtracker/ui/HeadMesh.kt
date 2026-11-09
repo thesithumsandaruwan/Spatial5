@@ -8,15 +8,36 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Procedurally sculpted white dummy head (skull, face, ears, neck and shoulders) and the shaders
- * used to light it. Pure Kotlin, so it can also be exported and previewed off-device.
- * Vertices are interleaved: x y z nx ny nz. Face looks toward +z, +x is the head's left.
+ * The dummy head: a real human head-and-shoulders scan ("Lee Perry-Smith" by Infinite Realities,
+ * CC BY 3.0) rendered as a white studio mannequin, plus the shaders used to light it. A procedural
+ * sculpt is kept as a fallback. Pure Kotlin, so it can also be exported and previewed off-device.
+ * Vertices are interleaved: x y z nx ny nz. Face looks toward +z, +x is the head's left, ears at y = 0.
  */
 object HeadMesh {
     class Data(val vertices: FloatArray, val indices: ShortArray)
 
+    /** Loads the compact scan asset written by tools/make_head.py. */
+    fun load(input: java.io.InputStream): Data {
+        val buf = java.nio.ByteBuffer.wrap(input.use { it.readBytes() }).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        val magic = ByteArray(4).also { buf.get(it) }
+        require(String(magic) == "HEAD") { "bad head asset" }
+        val vc = buf.int; val ic = buf.int
+        val v = FloatArray(vc * 6)
+        val q = 2.5f / 32767f
+        for (i in 0 until vc) {
+            val o = i * 6
+            v[o] = buf.short * q; v[o + 1] = buf.short * q; v[o + 2] = buf.short * q
+            var nx = buf.get() / 127f; var ny = buf.get() / 127f; var nz = buf.get() / 127f; buf.get()
+            val l = sqrt(nx * nx + ny * ny + nz * nz).coerceAtLeast(1e-6f); nx /= l; ny /= l; nz /= l
+            v[o + 3] = nx; v[o + 4] = ny; v[o + 5] = nz
+        }
+        val idx = ShortArray(ic) { buf.short }
+        return Data(v, idx)
+    }
 
-    fun head(): Data = merge(listOf(
+
+    /** Fallback when the scan asset is unavailable. */
+    fun procedural(): Data = merge(listOf(
         grid(112, 80, { doubleArrayOf(0.0, 0.0, 0.0) }) { u, v -> skull(u, v) },
         grid(28, 20, { doubleArrayOf(0.75, -0.06, -0.06) }) { u, v -> ear(u, v, 1f) },
         grid(28, 20, { doubleArrayOf(-0.75, -0.06, -0.06) }) { u, v -> ear(u, v, -1f) },
@@ -137,7 +158,7 @@ object HeadMesh {
         // Studio lighting on a white satin material: wrapped key light, cool fill, rim, soft AO.
     const val FS = """
             precision mediump float;
-            uniform vec3 uColor; uniform vec3 uEye; uniform vec3 uGlow; uniform float uEmissive;
+            uniform vec3 uColor; uniform vec3 uEye; uniform vec3 uGlow; uniform float uEmissive; uniform vec3 uBg;
             varying vec3 vN; varying vec3 vW; varying float vY;
             void main() {
                 vec3 n = normalize(vN);
@@ -148,12 +169,14 @@ object HeadMesh {
                 float wrapKey = max((dot(n, key) + 0.4) / 1.4, 0.0);
                 float f = max(dot(n, fill), 0.0) * 0.28;
                 float r = pow(1.0 - max(dot(n, v), 0.0), 3.0) * (0.25 + 0.35 * max(dot(n, rim), 0.0));
-                float ao = mix(0.62, 1.0, smoothstep(-1.5, 0.1, vY));
+                float ao = mix(0.72, 1.0, smoothstep(-1.8, 0.3, vW.y));
                 vec3 h = normalize(key + v);
                 float spec = pow(max(dot(n, h), 0.0), 36.0) * 0.16;
                 vec3 c = uColor * (0.20 + 0.78 * wrapKey + f) * ao;
                 c += vec3(spec) + r * vec3(0.85, 0.92, 1.0);
                 c = mix(c, uGlow, clamp(uEmissive, 0.0, 1.0) * 0.85) + uGlow * max(uEmissive - 1.0, 0.0) * 0.4;
+                // The bust dissolves into the background below the shoulders (museum-display look).
+                c = mix(uBg, c, smoothstep(-2.25, -0.95, vW.y));
                 gl_FragColor = vec4(c, 1.0);
             }"""
 

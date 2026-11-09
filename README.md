@@ -1,6 +1,6 @@
-# Head Tracker: AR-style head-tracked 3D audio for any earbuds
+# Spatial5: AR-style head-tracked 3D audio for any earbuds
 
-A small (~1.5 MB) Android app that gives earbuds with no motion sensors, such as the Anker
+A small (~1.7 MB) Android app that gives earbuds with no motion sensors, such as the Anker
 Soundcore P30i, head-tracked spatial audio. Every instrument, voice and effect in a song stays at
 its own fixed spot **in the room**. Turn your head and the whole scene stays put, including when
 it ends up behind you. It runs in the background and works with the players you already use.
@@ -13,11 +13,23 @@ it ends up behind you. It runs in the background and works with the players you 
 | What you get | Every sound gets its own direction, rendered with measured human-ear responses (HRTFs), correct ear-timing differences, front/back cues and a small virtual room. Surround (5.1/7.1) plays through virtual speakers | A balance and tone shift between the ears |
 | Added delay | ~10 ms of processing plus the audio buffers (head prediction makes up for it) | None |
 
-**Every app is covered, with no adb.** Apps that announce their audio session get Immersive 3D.
-Any other app that plays (or an app that blocks capture) automatically gets the Standard effect
-on the whole output. A silent second "probe" capture notices when an un-muted app can be captured
-and upgrades it to 3D by itself. Apps that block capture are remembered, so they never go silent
-for a moment.
+**Every app is covered, with no adb.**
+- **Apps that announce their audio session** (YouTube Music, Poweramp, VLC, Media3 players…)
+  get Immersive 3D straight away.
+- **Players that don't announce their session** are found by a scan: Android hands out session
+  IDs from one increasing counter, so the app attaches a passive Visualizer to the most recent
+  ones to see which is playing.
+  - A session must be playing in two scans about 2 s apart, and the scan only runs while an
+    unexplained *media* player is active, so navigation voice and notifications are ignored.
+  - The player is then muted and re-rendered in 3D, with "capture all media" excluding every
+    known app that isn't muted, so nothing is heard twice.
+- **Apps that block capture** are un-muted within ~1.5 s, switched to Standard (the global
+  effect) and remembered.
+- **Apps that produced 3D audio once** are remembered as verified, so a quiet gap between songs
+  never switches them out. That was the cause of the lag/jitter at song changes, along with:
+  - the global effect being created and destroyed during gaps (it's now bypassed instead);
+  - the output restarting after 3 s of silence (now 8 s, and the latency measurement resets
+    correctly).
 
 ### Sound quality
 
@@ -81,7 +93,7 @@ then the scene glides back to the front.
 
 1. Download the APK from the **Actions** tab (artifact `head-tracker-apk`), or build it with
    `./gradlew assembleRelease`.
-2. Open **Head Tracker** → **Start head tracking**. Allow camera, audio capture and notifications.
+2. Open **Spatial5** → **Start head tracking**. Allow camera, audio capture and notifications.
    When Android asks to "start recording or casting", choose **Entire screen**. Only audio is
    used, nothing is recorded or stored, and nothing leaves the phone.
 3. **Turn off Dolby Atmos / spatial / 3D effects** in your phone's sound settings while Immersive
@@ -96,8 +108,10 @@ Requires Android 10+ and Google Play services (for the face model).
 ## The app
 
 A dark/light adaptive, iOS-style interface:
-- a live **3D dummy head** (OpenGL, procedurally sculpted, studio-lit) that turns with you,
-  surrounded by **speakers fixed in the room** that glow with the music;
+- a live **3D dummy head**: a real human head-and-shoulders scan, rendered as a studio-lit white
+  mannequin that dissolves into the background below the shoulders, turning with you;
+- **speakers fixed in the room** around it that glow with the music;
+- **Now Playing** at the top, showing each app as 3D or Standard;
 - grouped settings cards, segmented controls and switches;
 - critically damped **spring animations** that you can interrupt, plus haptics;
 - a responsive layout: side by side in landscape and on tablets, with a centred reading column.
@@ -129,3 +143,6 @@ It renders only when something changes, so it costs nothing when idle.
 
 HRTF data: Bill Gardner and Keith Martin, MIT Media Lab, *HRTF Measurements of a KEMAR Dummy-Head
 Microphone* (1994). `tools/make_hrtf.py` converts it into `app/src/main/assets/hrtf_kemar.bin`.
+
+Head model: "Lee Perry-Smith" head scan by Infinite Realities, licensed CC BY 3.0 (via the three.js
+examples). `tools/make_head.py` converts it into `app/src/main/assets/head.bin`.
