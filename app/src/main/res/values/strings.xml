@@ -29,6 +29,8 @@
     <string name="strength">Standard Mode Intensity</string>
     <string name="invert">Invert Direction</string>
     <string name="pause_screen_off">Pause Camera When Screen Is Off</string>
+    <string name="diagnostics">Diagnostics</string>
+    <string name="copy">Copy</string>
     <string name="notif_channel">Head tracking</string>
     <string name="help">For the cleanest sound, turn off Dolby Atmos or other spatial effects in your phone\'s sound settings while Immersive 3D is on. When Android asks to share your screen, choose \"Entire screen\": only audio is used, and nothing is recorded or leaves your phone.\n\nHRTF data: MIT Media Lab KEMAR (Gardner &amp; Martin). Head model: \"Lee Perry-Smith\" scan by Infinite Realities, CC BY 3.0.</string>
 </resources>

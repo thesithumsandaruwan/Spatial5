@@ -198,6 +198,36 @@
             <TextView style="@style/T.Body" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/pause_screen_off" />
             <Switch android:id="@+id/pause_screen" style="@style/Toggle" />
         </LinearLayout>
+        <View style="@style/Divider" />
+        <LinearLayout style="@style/Row" android:orientation="vertical">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
+                <TextView style="@style/T.Body" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/diagnostics" />
+                <TextView
+                    android:id="@+id/diag_copy"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:background="@drawable/pill_secondary"
+                    android:gravity="center"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/accent"
+                    android:textSize="14sp"
+                    android:focusable="true"
+                    android:clickable="true"
+                    android:text="@string/copy" />
+            </LinearLayout>
+            <TextView
+                android:id="@+id/diag"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:fontFamily="monospace"
+                android:textSize="11sp"
+                android:lineSpacingMultiplier="1.15"
+                android:textColor="@color/label2"
+                android:textIsSelectable="true" />
+        </LinearLayout>
     </LinearLayout>
 
     <TextView style="@style/SectionFooter" android:layout_marginTop="24dp" android:text="@string/help" />

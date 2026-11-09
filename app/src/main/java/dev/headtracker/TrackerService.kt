@@ -340,6 +340,19 @@ class TrackerService : LifecycleService() {
                 if (changed) reconcile()
             }
             LiveState.render = renderDescription()
+            LiveState.diag = buildString {
+                append("media players active: ").append(mediaPlayers(e?.trackPlaying == true))
+                append("\nsessions: ").append(sessions.entries.joinToString { (id, s) ->
+                    "#$id " + (if (s.discovered) "scan" else s.pkg.substringAfterLast('.')) + " uid ${s.uid}" +
+                        when { effects.modeOf(id) == Mode.MUTE -> " [3D]"; id in failedSessions -> " [fail]"; else -> "" } }.ifEmpty { "none" })
+                append("\ncapture: ").append(when { e == null -> "off (no permission)"; e.captureAll -> "all media"; captureUids.isEmpty() -> "idle"; else -> "uids $captureUids" })
+                    .append(" · ch ").append(e?.captureChannels ?: 0)
+                    .append(" · signal ").append(if (e != null && SystemClock.uptimeMillis() - e.lastSignalMs < 500) "yes" else "no")
+                append("\nglobal effect: ").append(if (!globalSupported) "unsupported" else if (globalEngaged || immersive == null) "on" else "standby")
+                append("\nblocked apps: ").append(prefs.blocked.joinToString { it.substringAfterLast('.') }.ifEmpty { "none" })
+                append(" · rejected sessions: ").append(rejectedSessions.size)
+                append("\nlast scan: ").append(prober.lastReport)
+            }
             LiveState.width = e?.effectiveWidth ?: prefs.stageHalfWidthDeg
             LiveState.room = e?.effectiveRoom ?: (prefs.room / 100f)
             LiveState.levels = e?.levels

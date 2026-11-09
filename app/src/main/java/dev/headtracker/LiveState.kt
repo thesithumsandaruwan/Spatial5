@@ -19,6 +19,8 @@ object LiveState {
     /** Per virtual-speaker activity 0..1 (FL FR C LFE BL BR SL SR), or null. */
     @Volatile var levels: FloatArray? = null
     @Volatile var layout = LAYOUT_STANDARD
+    /** Session / capture state for the diagnostics panel. */
+    @Volatile var diag = ""
 
     const val LAYOUT_STANDARD = 0
     const val LAYOUT_UPMIX = 1

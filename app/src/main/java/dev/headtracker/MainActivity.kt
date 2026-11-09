@@ -124,7 +124,39 @@ class MainActivity : Activity() {
         bindSwitch(R.id.invert, prefs.invert) { prefs.invert = it }
         bindSwitch(R.id.pause_screen, prefs.pauseScreenOff) { prefs.pauseScreenOff = it }
 
+        findViewById<View>(R.id.diag_copy).setOnClickListener {
+            val text = deviceReport + "\n" + LiveState.diag
+            getSystemService(android.content.ClipboardManager::class.java)
+                .setPrimaryClip(android.content.ClipData.newPlainText("Spatial5 diagnostics", text))
+            it.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+            android.widget.Toast.makeText(this, "Diagnostics copied", android.widget.Toast.LENGTH_SHORT).show()
+        }
+
         updateCaptions(); updateTuning(); updateText()
+    }
+
+    /** Device facts: Android's own spatializer / head-tracking support and the audio effects on offer. */
+    private val deviceReport: String by lazy {
+        buildString {
+            append("${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
+            if (Build.VERSION.SDK_INT >= 32) {
+                val sp = getSystemService(android.media.AudioManager::class.java).spatializer
+                val attrs = android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_MEDIA).build()
+                fun fmt(mask: Int) = android.media.AudioFormat.Builder().setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(48000).setChannelMask(mask).build()
+                append("\nAndroid spatializer: level ").append(when (sp.immersiveAudioLevel) {
+                    android.media.Spatializer.SPATIALIZER_IMMERSIVE_LEVEL_NONE -> "none"
+                    android.media.Spatializer.SPATIALIZER_IMMERSIVE_LEVEL_MULTICHANNEL -> "multichannel"
+                    else -> sp.immersiveAudioLevel.toString()
+                })
+                append(" · available ").append(sp.isAvailable).append(" · enabled ").append(sp.isEnabled)
+                append(" · head tracker ").append(if (Build.VERSION.SDK_INT >= 33) sp.isHeadTrackerAvailable.toString() else "n/a")
+                append("\nspatializes stereo ").append(sp.canBeSpatialized(attrs, fmt(android.media.AudioFormat.CHANNEL_OUT_STEREO)))
+                    .append(" · 5.1 ").append(sp.canBeSpatialized(attrs, fmt(android.media.AudioFormat.CHANNEL_OUT_5POINT1)))
+            } else append("\nAndroid spatializer: not on this Android version")
+            val fx = try { android.media.audiofx.AudioEffect.queryEffects()?.toList() ?: emptyList() } catch (_: Throwable) { emptyList() }
+            append("\neffects (${fx.size}): ").append(fx.joinToString { "${it.name} [${it.implementor.take(18)}]" })
+        }
     }
 
     /** Edge-to-edge: content flows under the status/navigation bars; overlays keep clear of them. */
@@ -298,6 +330,8 @@ class MainActivity : Activity() {
             if (prefs.autoTune && prefs.immersive) " · Auto" else ""
 
         render.text = if (running) LiveState.render else "Head tracking is off"
+        val diag = findViewById<TextView>(R.id.diag)
+        if (diag.isShown) diag.text = deviceReport + "\n" + (if (running) LiveState.diag else "service stopped")
         val sessions = if (running) LiveState.sessions else ""
         if (sessions != lastSessions) { lastSessions = sessions; buildAppRows(sessions) }
     }

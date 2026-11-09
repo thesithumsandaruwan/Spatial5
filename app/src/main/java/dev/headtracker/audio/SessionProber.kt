@@ -15,6 +15,10 @@ import android.util.Log
  */
 class SessionProber(private val audio: AudioManager) {
 
+    /** Last scan, for the diagnostics panel. */
+    @Volatile var lastReport = "No scan yet"
+        private set
+
     /**
      * Returns the sessions among the newest [depth] candidates that are currently playing audio,
      * loudest first. [skip] = sessions to ignore (known, ours, rejected).
@@ -25,7 +29,11 @@ class SessionProber(private val audio: AudioManager) {
         val candidates = ArrayList<Int>(depth)
         var id = newest - STEP
         while (candidates.size < depth && id > 0) { if (id !in skip) candidates += id; id -= STEP }
+        created = 0; failed = 0; lastError = ""
         val found = measureLevels(candidates)
+        lastReport = "newest id $newest · scanned ${candidates.size} · visualizers ok $created / failed $failed" +
+            (if (lastError.isNotEmpty()) " ($lastError)" else "") +
+            " · playing: " + (if (found.isEmpty()) "none" else found.joinToString { "#${it.first} (${it.second / 100} dB)" })
         if (found.isNotEmpty()) Log.i(TAG, "playing sessions: $found (newest id $newest)")
         return found.sortedByDescending { it.second }.map { it.first }
     }
@@ -33,13 +41,17 @@ class SessionProber(private val audio: AudioManager) {
     /** Returns which of [sessions] are playing right now. */
     fun measure(sessions: List<Int>): List<Int> = if (sessions.isEmpty()) emptyList() else measureLevels(sessions).map { it.first }
 
+    private var created = 0
+    private var failed = 0
+    private var lastError = ""
+
     private fun measureLevels(candidates: List<Int>): List<Pair<Int, Int>> {
         val found = ArrayList<Pair<Int, Int>>()
         for (batch in candidates.chunked(BATCH)) {
             val vis = batch.mapNotNull { sid ->
                 try {
-                    Visualizer(sid).apply { measurementMode = Visualizer.MEASUREMENT_MODE_PEAK_RMS; enabled = true } to sid
-                } catch (_: Throwable) { null }
+                    (Visualizer(sid).apply { measurementMode = Visualizer.MEASUREMENT_MODE_PEAK_RMS; enabled = true } to sid).also { created++ }
+                } catch (t: Throwable) { failed++; lastError = t.javaClass.simpleName + (t.message?.let { ": " + it.take(40) } ?: ""); null }
             }
             if (vis.isEmpty()) continue
             SystemClock.sleep(WAIT_MS)
