@@ -126,7 +126,7 @@ update.
 ## Project layout
 
 ```
-app/src/main/java/dev/headtracker/
+app/src/main/java/dev/spatial5/
   tracking/   face and motion tracking, head-pose fusion, low-light handling
   dsp/        FFT, HRTF table, binaural renderer, virtual room
   audio/      capture/playback engine, per-app effects, session discovery

@@ -13,11 +13,11 @@ val signingProps = Properties().apply {
 }
 
 android {
-    namespace = "dev.headtracker"
+    namespace = "dev.spatial5"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "dev.headtracker"
+        applicationId = "dev.spatial5"
         minSdk = 29          // playback capture (immersive mode) needs Android 10
         targetSdk = 35
         // Release builds pass these from the git tag (see .github/workflows/release.yml).

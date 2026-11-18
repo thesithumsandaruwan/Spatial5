@@ -101,7 +101,7 @@
     <!-- AUDIO -->
     <TextView style="@style/SectionHeader" android:text="@string/sec_audio" android:accessibilityHeading="true" />
     <LinearLayout style="@style/Card">
-        <dev.headtracker.ui.SegmentedControl
+        <dev.spatial5.ui.SegmentedControl
             android:id="@+id/audio_mode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -155,7 +155,7 @@
     <!-- MOVIES -->
     <TextView style="@style/SectionHeader" android:text="@string/sec_movies" android:accessibilityHeading="true" />
     <LinearLayout style="@style/Card">
-        <dev.headtracker.ui.SegmentedControl
+        <dev.spatial5.ui.SegmentedControl
             android:id="@+id/movie_mode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -176,7 +176,7 @@
     <!-- HEAD TRACKING -->
     <TextView style="@style/SectionHeader" android:text="@string/sec_tracking" android:accessibilityHeading="true" />
     <LinearLayout style="@style/Card">
-        <dev.headtracker.ui.SegmentedControl
+        <dev.spatial5.ui.SegmentedControl
             android:id="@+id/track_mode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
