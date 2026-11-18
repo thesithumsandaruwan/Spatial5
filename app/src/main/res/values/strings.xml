@@ -21,18 +21,18 @@
     <string name="caption_movie_off">Music settings are used in landscape too.</string>
     <string name="mode_immersive">Immersive 3D</string>
     <string name="mode_standard">Standard</string>
-    <string name="caption_immersive">Every instrument gets its own fixed place in the room, re-rendered in real time. Android asks once to share audio; Pause keeps it, so you won\'t be asked again until you turn Spatial5 off or restart the phone.</string>
-    <string name="caption_standard">No permission prompt and no added delay: head tracking is applied directly to every app. Lighter than Immersive 3D, best for video.</string>
+    <string name="caption_immersive">Every instrument gets its own fixed place around you, re-rendered in real time, and players that don\'t announce themselves are found too. Needs permission to share audio: nothing is recorded or stored. Pause keeps it, so you\'re only asked again after Turn Off or a restart.</string>
+    <string name="caption_standard">Works with every app and needs no special permission. Head tracking is applied directly to the sound, with no added delay.</string>
     <string name="tip_dolby_standard">Tip: keep Dolby Atmos on in Standard. Dolby puts the sound around you, Spatial5 moves it with your head.</string>
     <string name="tip_dolby_immersive">Tip: turn Dolby Atmos off while Immersive 3D is on, so the sound isn\'t virtualised twice.</string>
     <string name="auto_tune">Auto-Tune</string>
     <string name="auto_tune_sub">Finds the best stage and room for each song</string>
     <string name="width">Stage Width</string>
     <string name="room">Room</string>
-    <string name="track_face">Face</string>
+    <string name="track_face">Face (Camera)</string>
     <string name="track_motion">Motion</string>
-    <string name="caption_face">The front camera follows your head; the gyroscope fills in between frames. Nothing is recorded.</string>
-    <string name="caption_motion">Uses only the phone\'s motion. Keep the phone in a pocket so it turns with you.</string>
+    <string name="caption_face">Follows your head with the front camera, even when the phone sits still on a desk or stand. Frames are analysed on the phone and never stored.</string>
+    <string name="caption_motion">Uses only the phone\'s motion sensors, no camera. Best with the phone in your pocket, so it turns when you do.</string>
     <string name="world">Lock to Room</string>
     <string name="world_sub">Sound stays put even when the phone moves</string>
     <string name="world_sub_cinema">Cinema is on: sound follows the screen</string>
@@ -43,9 +43,17 @@
     <string name="invert">Invert Direction</string>
     <string name="pause_screen_off">Pause Camera When Screen Is Off</string>
     <string name="diagnostics">Diagnostics</string>
+    <string name="hint_immersive">Want more? Immersive 3D gives every instrument its own place around you and can also pick up players that don\'t announce themselves. It asks for permission to share audio.</string>
+    <string name="hint_immersive_btn">Turn On Immersive 3D</string>
+    <string name="hint_face">Phone motion can\'t see your head turn while the phone sits still. Face tracking can: it uses the front camera, and frames never leave the phone.</string>
+    <string name="hint_face_btn">Use Face Tracking</string>
+    <string name="camera_declined">Camera not allowed: using phone motion.</string>
+    <string name="capture_declined">Audio sharing not allowed: using Standard.</string>
     <string name="refresh">Refresh</string>
     <string name="refreshing">Finding…</string>
     <string name="copy">Copy</string>
     <string name="notif_channel">Head tracking</string>
-    <string name="help">When Android asks to share your screen, choose \"Entire screen\": only audio is used, and nothing is recorded or leaves your phone.\n\nHRTF data: MIT Media Lab KEMAR (Gardner &amp; Martin). Head model: \"Lee Perry-Smith\" scan by Infinite Realities, CC BY 3.0.</string>
+    <string name="help">Spatial5 works without the camera and without audio sharing. Each one unlocks more: the camera follows your head even when the phone is still, and audio sharing enables Immersive 3D. If you turn on Immersive 3D and Android asks to share your screen, choose \"Entire screen\": only audio is used, nothing is recorded, and the app has no internet access.
+
+HRTF data: MIT Media Lab KEMAR (Gardner &amp; Martin). Head model: \"Lee Perry-Smith\" scan by Infinite Realities, CC BY 3.0.</string>
 </resources>

@@ -660,6 +660,10 @@ class TrackerService : LifecycleService() {
     }
 
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == Prefs.K_IMMERSIVE && !prefs.immersive && immersive != null) {
+            // Privacy: Standard needs no audio sharing, so give the permission back right away.
+            stopImmersive(); goForeground(withProjection = false)
+        }
         if (key == Prefs.K_IMMERSIVE && prefs.immersive) tracker.post {
             sessions.values.forEach { if (it.uid > 0 && it.pkg !in prefs.blocked) mutedUids += it.uid }
         }

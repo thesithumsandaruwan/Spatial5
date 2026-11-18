@@ -101,13 +101,10 @@ class MainActivity : Activity() {
         }
 
         // Audio
-        audioMode.segments = listOf(getString(R.string.mode_immersive), getString(R.string.mode_standard))
-        audioMode.select(if (prefs.immersive) 0 else 1, false)
-        audioMode.onChange = { i ->
-            prefs.immersive = i == 0
-            updateCaptions()
-            if (prefs.immersive && LiveState.running && !LiveState.immersiveRunning && ensurePermissions()) begin()
-        }
+        audioMode.segments = listOf(getString(R.string.mode_standard), getString(R.string.mode_immersive))
+        audioMode.select(if (prefs.immersive) 1 else 0, false)
+        audioMode.onChange = { i -> setImmersiveAudio(i == 1) }
+        findViewById<View>(R.id.now_hint_btn).apply { Springs.pressable(this, 0.95f); setOnClickListener { setImmersiveAudio(true) } }
         bindSwitch(R.id.auto_tune, prefs.autoTune) { prefs.autoTune = it; updateTuning() }
         bindSeek(widthBar, prefs.width) { prefs.width = it }
         bindSeek(roomBar, prefs.room) { prefs.room = it }
@@ -119,13 +116,10 @@ class MainActivity : Activity() {
         movie.onChange = { i -> prefs.movieMode = i; updateCaptions() }
 
         // Tracking
-        trackMode.segments = listOf(getString(R.string.track_face), getString(R.string.track_motion))
-        trackMode.select(if (prefs.faceMode) 0 else 1, false)
-        trackMode.onChange = { i ->
-            prefs.faceMode = i == 0
-            updateCaptions()
-            if (prefs.faceMode && ensurePermissions(REQ_PERMS_ONLY) && LiveState.running) TrackerService.start(this)
-        }
+        trackMode.segments = listOf(getString(R.string.track_motion), getString(R.string.track_face))
+        trackMode.select(if (prefs.faceMode) 1 else 0, false)
+        trackMode.onChange = { i -> setFace(i == 1) }
+        findViewById<View>(R.id.track_hint_btn).apply { Springs.pressable(this, 0.95f); setOnClickListener { setFace(true) } }
         bindSwitch(R.id.world, prefs.worldAnchor) { prefs.worldAnchor = it }
         bindSwitch(R.id.auto_recenter, prefs.autoRecenter) { prefs.autoRecenter = it }
 
@@ -223,6 +217,8 @@ class MainActivity : Activity() {
         audioCaption.setText(if (prefs.immersive) R.string.caption_immersive else R.string.caption_standard)
         findViewById<TextView>(R.id.dolby_tip).setText(if (prefs.immersive) R.string.tip_dolby_immersive else R.string.tip_dolby_standard)
         trackCaption.setText(if (prefs.faceMode) R.string.caption_face else R.string.caption_motion)
+        findViewById<View>(R.id.now_hint).visibility = if (prefs.immersive) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.track_hint).visibility = if (prefs.faceMode) View.GONE else View.VISIBLE
         findViewById<TextView>(R.id.movie_caption).setText(when (prefs.movieMode) {
             Prefs.MOVIE_ON -> R.string.caption_movie_on
             Prefs.MOVIE_OFF -> R.string.caption_movie_off
@@ -253,13 +249,34 @@ class MainActivity : Activity() {
         TrackerService.start(this)
     }
 
+    /** Immersive 3D on/off. On asks for audio sharing (now if running, else at Start); off releases it. */
+    private fun setImmersiveAudio(on: Boolean) {
+        prefs.immersive = on
+        audioMode.select(if (on) 1 else 0, true)
+        updateCaptions()
+        if (on && LiveState.running && !LiveState.immersiveRunning && ensurePermissions()) begin()
+    }
+
+    /** Face tracking on/off. On asks for the camera; declining falls back to phone motion. */
+    private fun setFace(on: Boolean) {
+        prefs.faceMode = on
+        trackMode.select(if (on) 1 else 0, true)
+        updateCaptions()
+        if (on && ensurePermissions(REQ_PERMS_ONLY) && LiveState.running) TrackerService.start(this)
+    }
+
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != REQ_CAPTURE) return
         if (resultCode == RESULT_OK && data != null) TrackerService.startWithProjection(this, resultCode, data)
-        else TrackerService.start(this)
+        else {
+            // Declined: carry on privately in Standard rather than in a half-working state.
+            setImmersiveAudio(false)
+            android.widget.Toast.makeText(this, R.string.capture_declined, android.widget.Toast.LENGTH_SHORT).show()
+            TrackerService.start(this)
+        }
     }
 
     private fun bindSeek(bar: SeekBar, value: Int, label: TextView? = null, set: (Int) -> Unit) {
@@ -295,6 +312,15 @@ class MainActivity : Activity() {
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        fun denied(p: String) = permissions.indexOf(p).let { it >= 0 && grantResults.getOrNull(it) != PackageManager.PERMISSION_GRANTED }
+        if (denied(Manifest.permission.CAMERA)) {
+            setFace(false)
+            android.widget.Toast.makeText(this, R.string.camera_declined, android.widget.Toast.LENGTH_SHORT).show()
+        }
+        if (denied(Manifest.permission.RECORD_AUDIO)) {
+            setImmersiveAudio(false)
+            android.widget.Toast.makeText(this, R.string.capture_declined, android.widget.Toast.LENGTH_SHORT).show()
+        }
         if (requestCode == REQ_PERMS) begin()
         else if (LiveState.running) TrackerService.start(this)
     }

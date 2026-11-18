@@ -7,7 +7,9 @@ AirPods have where the music stays put when you turn your head. The earbuds have
 so Spatial5 follows your head with the phone's front camera (or the phone's own motion sensors),
 then re-renders whatever is playing so every instrument keeps a fixed place in the room.
 
-It runs in the background and works with the players you already use.
+It runs in the background and works with the players you already use. Out of the box it needs no
+camera and no audio sharing; those are optional and each one unlocks more (see
+[Privacy](#privacy)).
 
 <p align="center">
   <img src="docs/screenshots/banner.png" alt="Spatial5 main screen in dark and light mode, and the settings" width="820">
@@ -15,14 +17,15 @@ It runs in the background and works with the players you already use.
 
 ## How it works
 
-**Tracking.** ML Kit's face detector runs on small front-camera frames and gives the angle of your
-head relative to the phone. Adding the phone's gyroscope heading turns that into your head's
-direction in the room, so the sound stays fixed even if the phone moves. A One Euro filter and a
-little velocity prediction keep it smooth, and the Bluetooth delay is measured and predicted away,
-so the sound is rendered for where your head will be when it reaches your ears. If you'd rather not
-use the camera, *Motion* mode uses only the phone's sensors (phone in your pocket).
+**Tracking.** By default Spatial5 uses only the phone's motion sensors: with the phone in your
+pocket it turns when you turn, and the sound stays where it was. *Face* mode (optional, uses the
+camera) follows your actual head even when the phone sits on a desk: ML Kit's face detector runs on
+small front-camera frames and gives the angle of your head relative to the phone, and the phone's
+gyroscope heading turns that into your head's direction in the room. A One Euro filter and a little
+velocity prediction keep it smooth, and the Bluetooth delay is measured and predicted away, so the
+sound is rendered for where your head will be when it reaches your ears.
 
-**Immersive 3D.** The player's audio is captured with Android's playback-capture API, the original
+**Immersive 3D** (optional). The player's audio is captured with Android's playback-capture API, the original
 is muted with an audio effect on its session, and Spatial5 plays its own binaural render:
 
 - stereo is split up in short frequency bands. The parts that are panned somewhere become sources
@@ -38,9 +41,10 @@ is muted with an audio effect on its session, and Spatial5 plays its own binaura
 *Auto-Tune* adjusts the stage width and the amount of room to each song: dry recordings get more
 room, reverberant or bass-heavy ones get less.
 
-**Standard.** For apps that can't be captured (Netflix and other DRM-protected apps block it), or
-when you don't want the capture prompt, Spatial5 changes the balance and tone of each ear in place.
-It's lighter than Immersive 3D, adds no delay, and works best with Dolby Atmos left on.
+**Standard** (the default). Spatial5 changes the balance and tone of each ear in place, using
+Android's built-in audio effects. It needs no special permission, works with every app, adds no
+delay, and works best with Dolby Atmos left on. It's also what apps that block capture (Netflix and
+other DRM-protected apps) get in Immersive mode.
 
 **Movies.** In landscape, Spatial5 switches to a cinema profile: the sound is anchored to the
 screen rather than the room, dialogue is pinned to the centre of the screen, effects spread wider
@@ -56,27 +60,41 @@ off.
 Download the APK from [Releases](../../releases) and install it. You'll need Android 10 or newer and
 Google Play services (ML Kit uses it for the face model).
 
-1. Open Spatial5 and tap **Start Head Tracking**. Allow the camera and notifications.
-2. Android asks to share your screen. Pick **Entire screen**. Only the audio is used; nothing is
-   recorded and nothing leaves the phone. **Pause** keeps this permission, so you only see the
-   prompt again after **Turn Off** or a reboot.
-3. Turn off Dolby Atmos (or any other spatial effect) in the phone's sound settings while you use
-   Immersive 3D, otherwise the sound gets virtualised twice. Leave it on for Standard.
-4. Play something. *Now Playing* shows each app as **3D** or **Standard**.
+1. Open Spatial5 and tap **Start Head Tracking**. That's all you need for Motion + Standard.
+2. Optional: switch Head Tracking to **Face (Camera)** if you'd like it to follow your head while the
+   phone sits still. Android asks for the camera then.
+3. Optional: switch Audio to **Immersive 3D**. Android asks to share your screen; pick **Entire
+   screen**. Only the audio is used and nothing is recorded. **Pause** keeps this permission, so you
+   only see the prompt again after **Turn Off** or a reboot. Switching back to Standard gives the
+   permission back immediately.
+4. With Immersive 3D, turn off Dolby Atmos (or any other spatial effect) in the phone's sound
+   settings, otherwise the sound gets virtualised twice. Leave it on for Standard.
+5. Play something. *Now Playing* shows each app as **3D** or **Standard**.
 
-Players that announce their audio session (YouTube Music, for example, and many apps built on
+In Immersive 3D, players that announce their audio session (YouTube Music, for example, and many apps built on
 Media3/ExoPlayer) switch to 3D straight away. For the others Spatial5 scans the most recent audio sessions, then works out which
 app is playing with a few very short test captures, which takes a few seconds. **Refresh** in Now
 Playing retries immediately.
 
-## Permissions
+## Privacy
 
-| Permission | Why |
+Spatial5 is built to work with as little access as possible:
+
+| Setup | Asks for | What you get |
+|---|---|---|
+| Default | nothing beyond notifications | Phone-motion tracking and Standard audio, for every app |
+| + Face tracking | Camera | Follows your head even when the phone is still |
+| + Immersive 3D | Screen/audio sharing (and record audio, which Android requires for it) | Full 3D re-render, and players that don't announce themselves are found too |
+
+Each optional permission is requested only when you switch its feature on. Declining simply keeps
+you on Motion or Standard.
+
+| Permission | Used for |
 |---|---|
-| Camera | Face tracking. Frames are processed in memory and never stored. |
-| Record audio + screen capture | Android's playback capture, used to re-render other apps' audio. The microphone is not used. |
-| Query all packages | To find which installed app owns the audio being played. |
-| Modify audio settings | Muting a player's original output and the Standard mode effect. |
+| Camera (optional) | Face tracking. Frames are processed in memory and never stored. |
+| Record audio + screen capture (optional) | Android's playback capture, used by Immersive 3D to re-render other apps' audio. The microphone is not used. |
+| Query all packages | Immersive 3D: finding which installed app owns the audio being played. |
+| Modify audio settings | Standard mode's effect, and muting a player's original output in Immersive 3D. |
 | Foreground service, notifications | Running in the background with a persistent notification. |
 
 The app has no internet permission at all (the one ML Kit's libraries request for usage logging

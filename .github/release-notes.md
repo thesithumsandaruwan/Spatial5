@@ -1,6 +1,6 @@
 Head-tracked spatial audio for earbuds without head tracking. Install the APK below (Android 10+, Google Play services needed for the face model).
 
-First time? Open Spatial5, tap **Start Head Tracking**, allow the camera, and pick **Entire screen** when Android asks to share your screen. Only audio is used and the app has no internet permission. Turn Dolby Atmos off while you use Immersive 3D.
+First time? Open Spatial5 and tap **Start Head Tracking**. By default it uses only the phone's motion sensors and Standard audio, so no camera or audio-sharing permission is needed. Face tracking (camera) and Immersive 3D (audio sharing) are optional switches that unlock more. The app has no internet permission.
 
 If you installed an earlier test build (package `dev.headtracker`), uninstall it: this release uses the package name `dev.spatial5`.
 

@@ -7,7 +7,7 @@ class Prefs(context: Context) {
     val sp: SharedPreferences = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
     var faceMode: Boolean
-        get() = sp.getBoolean(K_FACE_MODE, true)
+        get() = sp.getBoolean(K_FACE_MODE, false)   // private by default: phone motion, no camera
         set(v) = sp.edit().putBoolean(K_FACE_MODE, v).apply()
     var strength: Int
         get() = sp.getInt(K_STRENGTH, 60)
@@ -29,7 +29,7 @@ class Prefs(context: Context) {
         set(v) = sp.edit().putBoolean(K_SCREEN, v).apply()
 
     var immersive: Boolean
-        get() = sp.getBoolean(K_IMMERSIVE, true)
+        get() = sp.getBoolean(K_IMMERSIVE, false)   // private by default: Standard, no audio sharing
         set(v) = sp.edit().putBoolean(K_IMMERSIVE, v).apply()
     var worldAnchor: Boolean
         get() = sp.getBoolean(K_WORLD, true)
