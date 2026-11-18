@@ -113,8 +113,9 @@ assets in `app/src/main/assets/`.
 
 ### Releases
 
-Pushing a tag like `v1.2` runs `.github/workflows/release.yml`, which builds a signed APK and
-attaches it to a GitHub release. It needs two repository secrets:
+`.github/workflows/release.yml` builds a signed APK and attaches it to a GitHub release. Start it
+from **Actions → Release → Run workflow** with a version number (it creates the tag and the
+release), or push a tag like `v1.2`. It needs two repository secrets:
 
 - `KEYSTORE_BASE64`: the release keystore, base64-encoded (`base64 -w0 release.jks`)
 - `KEYSTORE_PASSWORD`: its password (used for the key too)

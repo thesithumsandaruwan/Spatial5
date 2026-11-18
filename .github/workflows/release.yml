@@ -1,7 +1,15 @@
 name: Release
 
-# Push a tag like v1.2 (or publish a release for one) and the signed APK is attached to it.
+# Three ways to publish a release with the signed APK attached:
+#  - Actions > Release > Run workflow, enter a version (creates the tag and the release),
+#  - push a tag like v1.2,
+#  - publish a release for a new tag on GitHub.
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, e.g. 1.2 (tag v1.2 is created)'
+        required: true
   push:
     tags: ['v*']
   release:
@@ -11,7 +19,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref_name }}
+  group: release-${{ inputs.version || github.ref_name }}
 
 jobs:
   release:
@@ -45,9 +53,14 @@ jobs:
             echo "keyPassword=$KEYSTORE_PASSWORD"
           } > signing/keystore.properties
 
+      - name: Work out the tag
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then echo "TAG=v${INPUT_VERSION#v}" >> "$GITHUB_ENV"; else echo "TAG=$GITHUB_REF_NAME" >> "$GITHUB_ENV"; fi
+
       - name: Build
         run: |
-          TAG="${GITHUB_REF_NAME}"
           ./gradlew testDebugUnitTest assembleRelease \
             -PappVersionName="${TAG#v}" -PappVersionCode="$(git rev-list --count HEAD)"
           cp app/build/outputs/apk/release/app-release.apk "Spatial5-${TAG}.apk"
@@ -56,11 +69,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "Spatial5-${TAG}.apk" --clobber
           else
-            gh release create "$TAG" "Spatial5-${TAG}.apk" --title "Spatial5 ${TAG}" --generate-notes
+            # Creates the tag on this commit if it doesn't exist yet.
+            gh release create "$TAG" "Spatial5-${TAG}.apk" --target "$GITHUB_SHA" \
+              --title "Spatial5 ${TAG}" --notes-file .github/release-notes.md
           fi
 
       - name: Remove signing files
